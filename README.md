@@ -13,26 +13,27 @@ How to install
 
 settings.py 
 ===========
-
-    INSTALLED_APPS = (
-        'openstack_dashboard',
-        'django.contrib.sessions',
-        'django.contrib.messages',
-        'django.contrib.staticfiles',
-        'django_nose',
-        'horizon',
-        'horizon.dashboards.nova',
-        'horizon.dashboards.syspanel',
-        'horizon.dashboards.settings',
-        'openstack_dashboard_webservices', #Added here
-    )
-
+```python
+INSTALLED_APPS = (
+    'openstack_dashboard',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'django_nose',
+    'horizon',
+    'horizon.dashboards.nova',
+    'horizon.dashboards.syspanel',
+    'horizon.dashboards.settings',
+    'openstack_dashboard_webservices', #Added here
+)
+```
 
 urls.py
 =======
-
-    urlpatterns = patterns('',
-        url(r'^$', 'openstack_dashboard.views.splash', name='splash'),
-        url(r'^qunit/$', 'openstack_dashboard.views.qunit_tests', name='qunit_tests'),
-        url(r'^soap/','openstack_dashboard_webservices.views.soap_services', name='soap_services'), #Added here
-        url(r'', include(horizon.urls)))
+```python
+urlpatterns = patterns('',
+    url(r'^$', 'openstack_dashboard.views.splash', name='splash'),
+    url(r'^qunit/$', 'openstack_dashboard.views.qunit_tests', name='qunit_tests'),
+    url(r'^soap/','openstack_dashboard_webservices.views.soap_services', name='soap_services'), #Added here
+    url(r'', include(horizon.urls)))
+```
