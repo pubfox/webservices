@@ -42,6 +42,30 @@ class Base(object):
                                     'Accept' : 'application/json',
                                     'X-Auth-Token' : self.apitoken
                          }
+        self.key_uri = key_uri
+    
+    def add_user(self, *args, **kwargs):
+        uri = self.key_uri + "/users"
+        self.key_headers = {'User-Agent': 'python-keystoneclient', 
+                            'Content-Type': 'application/json', 
+                            'X-Auth-Token': 'ADMIN'}
+        
+        body = {
+                "user": 
+                    {
+                     "email": kwargs["email"], 
+                     "password": kwargs["password"], 
+                     "enabled": True, 
+                     "name": kwargs["username"], 
+                     "tenantId": kwargs["tenantId"]
+                     }
+                }
+        body = json.dumps(body)
+        http = httplib2.Http()
+        resp, body = http.request (uri, method = "POST", headers=self.key_headers, body = body)
+        if resp.status == 200:
+            return WIC_RES_SUCCESS
+        return WIC_RES_FAILED
     
     def instance_create(self):
         pass
@@ -56,9 +80,16 @@ class Base(object):
 class wic_client(Base):
     def __init__(self, tenant = default_tenant):
         super(wic_client, self).__init__()
-        
-    def wic_add_user(self, *args):
-        pass
+    
+    def wic_add_user(self, *args, **kwargs):
+        if not kwargs["username"]: return WIC_RES_FAILED
+        if not kwargs.has_key("password"):
+            kwargs["password"] = default_password
+        if not kwargs.has_key("email"):
+            kwargs["email"] = default_email
+        if not kwargs.has_key("tenantId"):
+            kwargs["tenantId"] = None
+        return self.add_user(*args, **kwargs)
         
     def wic_secgroup_show(self, secgroup_name):
         all_secgroups = self.secgroup_show()
@@ -70,6 +101,7 @@ class wic_client(Base):
 
 if __name__ == '__main__':
     c = wic_client()
-    result = c.wic_secgroup_show("default")
+    #result = c.wic_secgroup_show("default")
+    result = c.wic_add_user(username = "test", password = "123456")
     print result
     
