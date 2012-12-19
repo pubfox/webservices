@@ -37,3 +37,24 @@ urlpatterns = patterns('',
     url(r'^soap/','openstack_dashboard_webservices.views.soap_services', name='soap_services'), #Added here
     url(r'', include(horizon.urls)))
 ```
+
+Test
+====
+wsdl: 
+```python
+http://yourhost/soap/?wsdl
+```
+rpc: 
+```python
+http://yourhost/soap/get_user?userid=1&username=Tom
+```
+soap:
+```python
+from suds.client import Client
+client = Client(url='http://yourhost/soap/?wsdl')
+print client
+print client.service.get_user(userid=1, username='Tom')
+```
+
+
+
