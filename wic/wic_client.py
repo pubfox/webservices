@@ -64,8 +64,10 @@ class Base(object):
         http = httplib2.Http()
         resp, body = http.request (uri, method = "POST", headers=self.key_headers, body = body)
         if resp.status == 200:
-            return WIC_RES_SUCCESS
-        return WIC_RES_FAILED
+            data = json.loads(body)
+            userId = data["user"]["id"]
+            return WIC_RES_SUCCESS, userId
+        return WIC_RES_FAILED, None
     
     def instance_create(self):
         pass
@@ -102,6 +104,5 @@ class wic_client(Base):
 if __name__ == '__main__':
     c = wic_client()
     #result = c.wic_secgroup_show("default")
-    result = c.wic_add_user(username = "test", password = "123456")
-    print result
-    
+    result, user_id = c.wic_add_user(username = "test", password = "123456")
+    print result, user_id
