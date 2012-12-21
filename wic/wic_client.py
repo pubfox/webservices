@@ -62,9 +62,9 @@ class Base(object):
                 }
         body = json.dumps(body)
         http = httplib2.Http()
-        resp, body = http.request (uri, method = "POST", headers=self.key_headers, body = body)
+        resp, content = http.request (uri, method = "POST", headers=self.key_headers, body = body)
         if resp.status == 200:
-            data = json.loads(body)
+            data = json.loads(content)
             userId = data["user"]["id"]
             return WIC_RES_SUCCESS, userId
         return WIC_RES_FAILED, None
@@ -75,8 +75,26 @@ class Base(object):
     def secgroup_show(self):
         uri = self.apiurl + str('/os-security-groups')
         http = httplib2.Http()
-        resp, body = http.request (uri, method = "GET", headers=self.headers)
-        return json.loads(body)
+        resp, content = http.request (uri, method = "GET", headers=self.headers)
+        return json.loads(content)
+    
+    def instance_suspend(self, ins_id):
+        uri = self.apiurl + "/servers/" + ins_id + "/action"
+        body = {"suspend" : None}
+        body = json.dumps(body)
+        http = httplib2.Http()
+        resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        if resp.status == 200:
+            return WIC_RES_SUCCESS
+        return WIC_RES_FAILED
+    
+    def instance_delete(self, ins_id):
+        uri = self.apiurl + "/servers/" + id
+        http = httplib2.Http()
+        resp, content = http.request(uri, method = "DELETE", headers = self.headers)
+        if resp.status == 200:
+            return WIC_RES_SUCCESS
+        return WIC_RES_FAILED
 
 
 class wic_client(Base):
@@ -99,6 +117,12 @@ class wic_client(Base):
             if secgroup['name'] == secgroup_name:
                 return WIC_RES_SUCCESS
         return WIC_RES_FAILED
+    
+    def wic_instance_suspend(self, ins_id):
+        return self.instance_suspend(ins_id)
+    
+    def wic_instance_delete(self, ins_id):
+        return self.instance_delete(ins_id)
     
 
 if __name__ == '__main__':

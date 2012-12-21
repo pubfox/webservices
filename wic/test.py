@@ -9,4 +9,12 @@ def secgroup_show(name):
     
 def add_user(username, password):
     c = wic_client()
-    res = c.wic_add_user(username = username, password = password)
+    res, user_id = c.wic_add_user(username = username, password = password)
+    
+def suspend_instance(ins_id):
+    c = wic_client()
+    res = c.wic_instance_suspend(ins_id)
+    
+def delete_instance(ins_id):
+    c = wic_client()
+    res = c.wic_instance_delete(ins_id)

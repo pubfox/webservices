@@ -1,6 +1,6 @@
 #uri, userinfo..
 token_uri          = "http://172.18.200.130:5000/v2.0/tokens"
-key_uri            = "http://localhost:35357/v2.0"
+key_uri            = "http://172.18.200.130:35357/v2.0"
 osuser             = "admin"
 ospassword         = "87827270"
 default_tenant     = "demo"
