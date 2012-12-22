@@ -5,6 +5,7 @@ osuser             = "admin"
 ospassword         = "87827270"
 default_tenant     = "demo"
 default_email      = "changxu.liu@guoteng.com.cn"
+default_requestId  = "abcdefgh00000000"
 default_flavor     = "m1.tiny"
 default_images     = [ "linux_tty" ] 
 instance_prefix    = "Chuandge_"
@@ -21,3 +22,6 @@ IPMI_PASS          = '87827270'
 
 #debug
 DEBUG_MODE         = 0
+
+#format
+ISOTIMEFORMAT      = '%Y-%m-%d %X'
