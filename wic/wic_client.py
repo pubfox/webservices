@@ -36,6 +36,7 @@ class Base(object):
         self.apitoken = data['access']['token']['id']
         self.volumeurl = data['access']['serviceCatalog'][0]['endpoints'][0]['publicURL']
         self.apiurl = data['access']['serviceCatalog'][2]['endpoints'][0]['publicURL']
+        self.tenant_id = data['access']['token']['tenant']['id']
         self.headers =  {
                                     'X-Auth-Project-Id' : tenant,
                                     'User-Agent' : 'python-novaclient',
@@ -45,7 +46,7 @@ class Base(object):
                          }
         self.key_uri = key_uri
     
-    def add_user(self, *args, **kwargs):
+    def add_user(self, username, password, email, tenantId):
         uri = self.key_uri + "/users"
         self.key_headers = {'User-Agent': 'python-keystoneclient', 
                             'Content-Type': 'application/json', 
@@ -54,11 +55,11 @@ class Base(object):
         body = {
                 "user": 
                     {
-                     "email": kwargs["email"], 
-                     "password": kwargs["password"], 
+                     "email": email, 
+                     "password": password, 
                      "enabled": True, 
-                     "name": kwargs["userName"], 
-                     "tenantId": kwargs["tenantId"]
+                     "name": username, 
+                     "tenantId": tenantId
                      }
                 }
         body = json.dumps(body)
@@ -141,6 +142,19 @@ class Base(object):
         if resp.status == 200:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
+    
+    def floating_ip_create(self, ipaddr):
+        pass
+    
+    def floating_ip_add(self, ins_id, ipaddr):
+        uri = self.apiurl + "/servers/" + ins_id + "/action"
+        body = {"addFloatingIp": {"address": ip}}
+        body = json.dumps(body)
+        http = httplib2.Http()
+        resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        if resp.status == 200:
+            return WIC_RES_SUCCESS
+        return WIC_RES_FAILED
 
 
 class wic_client(Base):
@@ -148,18 +162,22 @@ class wic_client(Base):
         super(wic_client, self).__init__()
     
     def wic_add_user(self, *args, **kwargs):
-        if not kwargs["userName"]: return WIC_RES_FAILED
+        if not kwargs["CreateUser"]["userName"]: return WIC_RES_FAILED
+        username = kwargs["CreateUser"]["userName"]
         if not kwargs.has_key("requestId") or not kwargs["requestId"]:
             kwargs["requestId"] = default_requestId
-        if not kwargs.has_key("password"):
-            kwargs["password"] = default_password
+        if not kwargs["CreateUser"].has_key("password"):
+            kwargs["CreateUser"]["password"] = default_password
+        password = kwargs["CreateUser"]["password"]
         if not kwargs.has_key("email"):
-            kwargs["email"] = default_email
-        if not kwargs.has_key("tenantId"):
-            kwargs["tenantId"] = None
-        kwargs["timestamp"] = wic_utils.get_timestamp()
-        status, userId = self.add_user(*args, **kwargs)
-        kwargs["userId"] = userId
+            kwargs["CreateUser"]["email"] = default_email
+        email = kwargs["CreateUser"]["email"]
+        if not kwargs["CreateUser"].has_key("tenantId"):
+            kwargs["CreateUser"]["tenantId"] = self.tenant_id
+        tenantId = kwargs["CreateUser"]["tenantId"]
+        kwargs["CreateUser"]["timestamp"] = wic_utils.get_timestamp()
+        status, userId = self.add_user(username, password, email, tenantId)
+        kwargs["CreateUser"]["userId"] = userId
         return kwargs
         
     def wic_secgroup_show(self, *args, **kwargs):
@@ -221,12 +239,30 @@ class wic_client(Base):
         kwargs["result"] = self.volume_dettach(ins_id, volume_id)
         return kwargs
     
+    def wic_floating_ip_add(self, *args, **kwargs):
+        if not kwargs.has_key("instanceId") or not kwargs["instanceId"] or \
+        not kwargs.has_key("ip") or not kwargs["ip"]:
+            kwargs["result"] = WIC_RES_FAILED
+            return kwargs
+        ins_id = kwargs["instanceId"]
+        ipaddr = kwargs["ip"]
+        kwargs["timestamp"] = wic_utils.get_timestamp()
+        kwargs["result"] = self.floating_ip_add(ins_id, ipaddr)
+        return kwargs
+    
 
 if __name__ == '__main__':
     c = wic_client()
-    result = c.wic_secgroup_show(groupName = "default")
+    #result = c.wic_secgroup_show(groupName = "default")
+    params = {'requestId':"requestId"}
+    params['CreateUser'] = {
+        'userName':"userName",
+        'phoneNumber':"phoneNumber",
+        'email': "email",
+        'timestamp': "timestamp",
+        }
+    res = c.wic_add_user(**params)
+    print res
     #result = c.wic_add_user(userName = "test", password = "123456")
     #result, volume_id = c.wic_volume_create(5)
     #result = c.wic_volume_attach("93707c4e-f547-4b13-9358-c18d8ff08555", 4)
-    
-    print result
