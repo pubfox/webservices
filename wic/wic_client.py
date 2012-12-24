@@ -10,6 +10,7 @@ import os
 import wic_utils
 from urlparse import urlparse
 from wic_client_defines import *
+from wic_floating import *
 
 
 class Base(object):
@@ -143,8 +144,43 @@ class Base(object):
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
     
-    def floating_ip_create(self, ipaddr):
-        pass
+    def volume_delete(self, volume_id):
+        uri = self.volumeurl + "/volumes/" + str(id)
+        http = httplib2.Http()
+        resp, content = http.request(uri, method = "DELETE", headers = self.headers)
+        if resp.status == 200:
+            return WIC_RES_SUCCESS
+        return WIC_RES_FAILED
+    
+    def instance_reboot(self, ins_id):
+        uri = self.apiurl + "/servers/" + ins_id + "/action"
+        body = {"reboot": {"type": "SOFT"}}
+        body = json.dumps(body)
+        http = httplib2.Http()
+        resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        if resp.status == 200:
+            return WIC_RES_SUCCESS
+        return WIC_RES_FAILED
+    
+    def instance_pause(self, ins_id):
+        uri = self.apiurl + "/servers/" + ins_id + "/action"
+        body = {"pause" : None}
+        body = json.dumps(body)
+        http = httplib2.Http()
+        resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        if resp.status == 200:
+            return WIC_RES_SUCCESS
+        return WIC_RES_FAILED
+    
+    def floating_ip_create(self):
+        uri = self.apiurl + '/os-floating-ips'
+        body = {"pool": None}
+        body = json.dumps(body)
+        http = httplib2.Http()
+        resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        if resp.status == 200:
+            return WIC_RES_SUCCESS, content["floating_ip"]["ip"]
+        return WIC_RES_FAILED, None        
     
     def floating_ip_add(self, ins_id, ipaddr):
         uri = self.apiurl + "/servers/" + ins_id + "/action"
@@ -155,6 +191,9 @@ class Base(object):
         if resp.status == 200:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
+    
+    def floating_ip_delete(self, ins_id, ipaddr):
+        pass
 
 
 class wic_client(Base):
@@ -239,6 +278,24 @@ class wic_client(Base):
         kwargs["result"] = self.volume_dettach(ins_id, volume_id)
         return kwargs
     
+    def wic_volume_delete(self, *args, **kwargs):
+        if not kwargs["DelDisk"].has_key("volumeId") or not kwargs["DelDisk"]["volumeId"]:
+            kwargs["DelDisk"]["result"] = WIC_RES_FAILED
+        volume_id = kwargs["DelDisk"]["volumeId"]
+        kwargs["DelDisk"]["result"] = self.volume_delete(volume_id)
+        return kwargs
+    
+    def wic_instance_reboot(self, *args, **kwargs):
+        if not kwargs["RestartHost"].has_key("instanceId") or not kwargs["RestartHost"]["instaceId"]:
+            kwargs["RestartHost"]["result"] = WIC_RES_FAILED
+        ins_id = kwargs["RestartHost"]["instaceId"]
+        kwargs["RestartHost"]["result"] = self.instance_reboot(ins_id)
+        return kwargs
+    
+    def wic_floating_ip_create(self, *args, **kwargs):
+        kwargs["CreateIp"]["result"], kwargs["CreateIp"]["ip"] = self.floating_ip_create()
+        return kwargs
+    
     def wic_floating_ip_add(self, *args, **kwargs):
         if not kwargs.has_key("instanceId") or not kwargs["instanceId"] or \
         not kwargs.has_key("ip") or not kwargs["ip"]:
@@ -249,6 +306,9 @@ class wic_client(Base):
         kwargs["timestamp"] = wic_utils.get_timestamp()
         kwargs["result"] = self.floating_ip_add(ins_id, ipaddr)
         return kwargs
+    
+    def wic_floating_ip_delete(self, *args, **kwargs):
+        pass
     
 
 if __name__ == '__main__':
