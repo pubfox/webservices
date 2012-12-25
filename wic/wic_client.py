@@ -7,10 +7,11 @@ import time
 import subprocess
 import re
 import os
+import urllib2
 import wic_utils
 from urlparse import urlparse
 from wic_client_defines import *
-from wic_floating import *
+#from wic_floating import *
 
 
 class Base(object):
@@ -46,6 +47,39 @@ class Base(object):
                                     'X-Auth-Token' : self.apitoken
                          }
         self.key_uri = key_uri
+        self.host_map = {}
+        self.img_dict = {}
+        self.ins_list = []
+        self.host_len = wic_utils.get_hostmap(self.host_map)
+    
+    def img_list(self):
+        uri = self.apiurl + "/images"
+        http = httplib2.Http()
+        resp, content = http.request (uri, method = "GET", headers=self.headers)
+        data = json.loads(content)
+        for i in range(len(data['images'])):
+            self.img_dict[ str(data["images"][i]["id"]) ] = str(data["images"][i]["name"])
+        return len(self.img_dict)
+    
+    def guest_list(self):
+        img_len = self.img_list()
+        uri = self.apiurl + "/servers/detail"
+        http = httplib2.Http()
+        resp, content = http.request (uri, method = "GET", headers=self.headers)
+        data = json.loads(content)
+        for i in range(len(data["servers"])):
+            self.instance_dict = {}
+            self.instance_dict["id"] = str( data["servers"][i]["id"] )
+            self.instance_dict["name"] = str( data["servers"][i]["name"] )
+            self.instance_dict["status"] = str( data["servers"][i]["status"] )
+            self.instance_dict["flavor"] = str( data["servers"][i]["flavor"]["id"] )
+            self.instance_dict["host"] = str( data["servers"][i]["OS-EXT-SRV-ATTR:host"] )
+            self.instance_dict["home"] = self.host_map[ self.instance_dict["host"] ]
+            self.instance_dict["addr"] = str( data["servers"][i]["addresses"]["private"][0]["addr"] )
+            self.instance_dict["imageid"] = str( data["servers"][i]["image"]["id"] )
+            self.instance_dict["img"] = wic_utils.get_img_name( self.img_dict[ self.instance_dict["imageid"] ] )
+            self.ins_list.append(self.instance_dict)
+        return len(self.ins_list)
     
     def add_user(self, username, password, email, tenantId):
         uri = self.key_uri + "/users"
@@ -194,7 +228,27 @@ class Base(object):
     
     def floating_ip_delete(self, ins_id, ipaddr):
         pass
-
+    
+    def netspeed_update(self, ins_id, netspeed):
+        ins_len = self.guest_list()
+        if not ins_len: return WIC_RES_FAILED
+        hostip = wic_utils.get_ins_hostip(ins_id, self.ins_list, self.host_map)
+        if not hostip:
+            return WIC_RES_FAILED, None
+        uri = "http://" + str(hostip) + ":" + DEV_CTL_PORT + "/instance_device/netspeed/" + str(ins_id) + "/0"
+        req = urllib2.Request(uri)
+        fd = urllib2.urlopen(req)
+        ret = fd.read(3)
+        if ret == "nok":
+            return WIC_RES_FAILED, hostip
+        uri = "http://" + str(hostip) + ":" + DEV_CTL_PORT + "/instance_device/netspeed/" + str(ins_id) + "/" + str(netspeed)
+        req = urllib2.Request(uri)
+        fd = urllib2.urlopen(req)
+        ret = fd.read(3)
+        if ret == "nok":
+            return WIC_RES_FAILED, hostip  
+        return WIC_RES_SUCCESS, hostip
+    
 
 class wic_client(Base):
     def __init__(self, tenant = default_tenant):
@@ -310,18 +364,27 @@ class wic_client(Base):
     def wic_floating_ip_delete(self, *args, **kwargs):
         pass
     
+    def wic_update_netspeed(self, *args, **kwargs):
+        if not kwargs["UpdateNetSpeed"]["instanceId"]: return WIC_RES_FAILED
+        ins_id = kwargs["UpdateNetSpeed"]["instanceId"]
+        if not kwargs.has_key("requestId") or not kwargs["requestId"]:
+            kwargs["requestId"] = default_requestId
+        if not kwargs["UpdateNetSpeed"]["netSpeed"]: return WIC_RES_FAILED
+        netspeed = kwargs["UpdateNetSpeed"]["netSpeed"]
+        kwargs["UpdateNetSpeed"]["result"], hostip  = self.netspeed_update(ins_id, netspeed)
+        return kwargs
+        
 
 if __name__ == '__main__':
     c = wic_client()
     #result = c.wic_secgroup_show(groupName = "default")
     params = {'requestId':"requestId"}
-    params['CreateUser'] = {
-        'userName':"userName",
-        'phoneNumber':"phoneNumber",
-        'email': "email",
+    params['UpdateNetSpeed'] = {
+        'instanceId':'93707c4e-f547-4b13-9358-c18d8ff08555',
+        'netSpeed': 10,
         'timestamp': "timestamp",
         }
-    res = c.wic_add_user(**params)
+    res = c.wic_update_netspeed(**params)
     print res
     #result = c.wic_add_user(userName = "test", password = "123456")
     #result, volume_id = c.wic_volume_create(5)

@@ -17,6 +17,9 @@ control_node       = ["show-01"]
 WIC_RES_SUCCESS    = 1
 WIC_RES_FAILED     = 5
 
+#port
+DEV_CTL_PORT       = '8001'
+
 #ipmi config
 IPMI_USER          = 'root'
 IPMI_PASS          = '87827270'
