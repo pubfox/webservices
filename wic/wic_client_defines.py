@@ -9,6 +9,7 @@ default_requestId  = "abcdefgh00000000"
 default_flavor     = "m1.tiny"
 default_images     = [ "linux_tty" ] 
 default_password   = "123456"
+default_sec_desc   = "secgroup description"
 instance_prefix    = "Chuandge_"
 ins_list           = []
 control_node       = ["show-01"]

@@ -61,6 +61,14 @@ class Base(object):
             self.img_dict[ str(data["images"][i]["id"]) ] = str(data["images"][i]["name"])
         return len(self.img_dict)
     
+    def find_image(self, image_type):
+        len = self.img_list()
+        if not len: return None
+        for k, v in self.img_dict.items():
+            if v == str(image_type):
+                return k
+        return None
+    
     def guest_list(self):
         img_len = self.img_list()
         uri = self.apiurl + "/servers/detail"
@@ -75,7 +83,9 @@ class Base(object):
             self.instance_dict["flavor"] = str( data["servers"][i]["flavor"]["id"] )
             self.instance_dict["host"] = str( data["servers"][i]["OS-EXT-SRV-ATTR:host"] )
             self.instance_dict["home"] = self.host_map[ self.instance_dict["host"] ]
-            self.instance_dict["addr"] = str( data["servers"][i]["addresses"]["private"][0]["addr"] )
+            if data["servers"][i]["addresses"].has_key("private"):
+                self.instance_dict["addr"] = str( data["servers"][i]["addresses"]["private"][0]["addr"] )
+            else: self.instance_dict["addr"] = None
             self.instance_dict["imageid"] = str( data["servers"][i]["image"]["id"] )
             self.instance_dict["img"] = wic_utils.get_img_name( self.img_dict[ self.instance_dict["imageid"] ] )
             self.ins_list.append(self.instance_dict)
@@ -115,6 +125,19 @@ class Base(object):
         resp, content = http.request (uri, method = "GET", headers=self.headers)
         return json.loads(content)
     
+    def secgroup_create(self, secgroup_name):
+        uri = self.apiurl + str('/os-security-groups')
+        body = {"security_group": {"name": secgroup_name, "description": default_sec_desc}}
+        http = httplib2.Http()
+        resp, content = http.request (uri, method = "POST", body = body, headers=self.headers)
+        if resp.status == 200:
+            data = json.loads(content)
+            return WIC_RES_SUCCESS, data["security_group"]["id"]
+        return WIC_RES_FAILED, None
+    
+    def secgroup_delete(self, secgroup_name):
+        pass
+        
     def instance_suspend(self, ins_id):
         uri = self.apiurl + "/servers/" + ins_id + "/action"
         body = {"suspend" : None}
@@ -249,6 +272,25 @@ class Base(object):
             return WIC_RES_FAILED, hostip  
         return WIC_RES_SUCCESS, hostip
     
+    def volume_snapshot_create(self, volume_id):
+        uri = self.apiurl + "/snapshots"
+        body = {"snapshot": {"display_name": null, "force": false, "display_description": null, "volume_id": volume_id}}
+        body = json.dumps(body)
+        http = httplib2.Http()
+        resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        if resp.status == 200:
+            data = json.loads(content)
+            return WIC_RES_SUCCESS, content["snapshot"]["id"]
+        return WIC_RES_FAILED, None
+    
+    def volume_snapshot_delete(self, snapshot_id):
+        uri = self.apiurl + "/snapshots/" + str(snapshot_id)
+        http = httplib2.Http()
+        resp, content = http.request(uri, method = "DELETE", headers = self.headers)
+        if resp.status == 200:
+            return WIC_RES_SUCCESS
+        return WIC_RES_FAILED
+        
 
 class wic_client(Base):
     def __init__(self, tenant = default_tenant):
@@ -272,8 +314,16 @@ class wic_client(Base):
         status, userId = self.add_user(username, password, email, tenantId)
         kwargs["CreateUser"]["userId"] = userId
         return kwargs
+    
+    def CreateSecurityGroup(self, **kwargs):
+        if not kwargs["CreateSecurityGroup"]["groupName"]:
+            kwargs["CreateSecurityGroup"]["result"] = WIC_RES_FAILED
+            return kwargs
+        secgroup_name = kwargs["CreateSecurityGroup"]["groupName"]
+        kwargs["CreateSecurityGroup"]["result"], id = self.secgroup_create(secgroup_name)
+        return kwargs
         
-    def wic_secgroup_show(self, *args, **kwargs):
+    def DescribeSecurityGroup(self, *args, **kwargs):
         kwargs["result"] = WIC_RES_FAILED
         kwargs["timestamp"] = wic_utils.get_timestamp()
         secgroup_name = kwargs["groupName"]
@@ -283,7 +333,10 @@ class wic_client(Base):
                 kwargs["result"] = WIC_RES_SUCCESS
         return kwargs
     
-    def wic_instance_suspend(self, *args, **kwargs):
+    def DelSecurityGroup(self, **kwargs):
+        pass
+    
+    def StopHost(self, *args, **kwargs):
         if not kwargs.has_key("instanceId") or not kwargs["instanceId"]:
             kwargs["result"] = WIC_RES_FAILED
             return kwargs
@@ -292,7 +345,7 @@ class wic_client(Base):
         kwargs["result"]  = self.instance_suspend(ins_id)
         return kwargs
     
-    def wic_instance_delete(self, *args, **kwargs):
+    def DelHost(self, *args, **kwargs):
         if not kwargs.has_key("instanceId") or not kwargs["instanceId"]:
             kwargs["result"] = WIC_RES_FAILED
             return kwargs
@@ -301,7 +354,7 @@ class wic_client(Base):
         kwargs["result"] = self.instance_delete(ins_id)
         return kwargs
     
-    def wic_volume_create(self, *args, **kwargs):
+    def CreateDisk(self, *args, **kwargs):
         if not kwargs.has_key("disk") or not kwargs["disk"]:
             kwargs["result"] = WIC_RES_FAILED
             return kwargs
@@ -310,7 +363,7 @@ class wic_client(Base):
         kwargs["result"], kwargs["volumeId"]  = self.volume_create(size)
         return kwargs
     
-    def wic_volume_attach(self, *args, **kwargs):
+    def BindDisk(self, *args, **kwargs):
         if not kwargs.has_key("instanceId") or not kwargs["instanceId"] or \
         not kwargs.has_key("volumeId") or not kwargs["volumeId"]:
             kwargs["result"] = WIC_RES_FAILED
@@ -332,25 +385,34 @@ class wic_client(Base):
         kwargs["result"] = self.volume_dettach(ins_id, volume_id)
         return kwargs
     
-    def wic_volume_delete(self, *args, **kwargs):
+    def DelDisk(self, *args, **kwargs):
         if not kwargs["DelDisk"].has_key("volumeId") or not kwargs["DelDisk"]["volumeId"]:
             kwargs["DelDisk"]["result"] = WIC_RES_FAILED
         volume_id = kwargs["DelDisk"]["volumeId"]
         kwargs["DelDisk"]["result"] = self.volume_delete(volume_id)
         return kwargs
     
-    def wic_instance_reboot(self, *args, **kwargs):
+    def RestartHost(self, *args, **kwargs):
         if not kwargs["RestartHost"].has_key("instanceId") or not kwargs["RestartHost"]["instaceId"]:
             kwargs["RestartHost"]["result"] = WIC_RES_FAILED
+            return kwargs
         ins_id = kwargs["RestartHost"]["instaceId"]
         kwargs["RestartHost"]["result"] = self.instance_reboot(ins_id)
         return kwargs
     
-    def wic_floating_ip_create(self, *args, **kwargs):
+    def ShutdownHost(self, **kwargs):
+        if not kwargs["ShutdownHos"]["instanceId"]:
+            kwargs["ShutdownHos"]["result"] = WIC_RES_FAILED
+            return kwargs
+        ins_id = kwargs["ShutdownHos"]["instanceId"]
+        kwargs["ShutdownHos"]["result"] = self.instance_pause(ins_id)
+        return kwargs
+        
+    def ApplyIp(self, *args, **kwargs):
         kwargs["CreateIp"]["result"], kwargs["CreateIp"]["ip"] = self.floating_ip_create()
         return kwargs
     
-    def wic_floating_ip_add(self, *args, **kwargs):
+    def BindIp(self, *args, **kwargs):
         if not kwargs.has_key("instanceId") or not kwargs["instanceId"] or \
         not kwargs.has_key("ip") or not kwargs["ip"]:
             kwargs["result"] = WIC_RES_FAILED
@@ -361,11 +423,13 @@ class wic_client(Base):
         kwargs["result"] = self.floating_ip_add(ins_id, ipaddr)
         return kwargs
     
-    def wic_floating_ip_delete(self, *args, **kwargs):
-        pass
+    def UnbindIp(self, *args, **kwargs):
+        return kwargs
     
-    def wic_update_netspeed(self, *args, **kwargs):
-        if not kwargs["UpdateNetSpeed"]["instanceId"]: return WIC_RES_FAILED
+    def UpdateNetSpeed(self, *args, **kwargs):
+        if not kwargs["UpdateNetSpeed"]["instanceId"]: 
+            kwargs["UpdateNetSpeed"]["result"] = WIC_RES_FAILED
+            return kwargs
         ins_id = kwargs["UpdateNetSpeed"]["instanceId"]
         if not kwargs.has_key("requestId") or not kwargs["requestId"]:
             kwargs["requestId"] = default_requestId
@@ -373,6 +437,40 @@ class wic_client(Base):
         netspeed = kwargs["UpdateNetSpeed"]["netSpeed"]
         kwargs["UpdateNetSpeed"]["result"], hostip  = self.netspeed_update(ins_id, netspeed)
         return kwargs
+    
+    def CreateSnapshot(self, **kwargs):
+        if not kwargs["CreateSnapshot"]["volumeId"]:
+             kwargs["CreateSnapshot"]["result"] = WIC_RES_FAILED
+             return kwargs
+        volume_id = kwargs["CreateSnapshot"]["volumeId"]
+        kwargs["CreateSnapshot"]["result"], kwargs["CreateSnapshot"]["snapshotId"] = \
+        self.volume_snapshot_create(volume_id)
+        return kwargs
+    
+    def DeleteSnapshot(self, **kwargs):
+        if not kwargs["DeleteSnapshot"]["snapshotId"]:
+            kwargs["DeleteSnapshot"]["result"] = WIC_RES_FAILED
+            return kwargs
+        snapshot_id = kwargs["DeleteSnapshot"]["snapshotId"]
+        kwargs["DeleteSnapshot"]["result"] = self.volume_snapshot_delete(snapshot_id)
+        return kwargs
+    
+    def CreateImage(self, **kwargs):
+        if not kwargs["CreateImage"]["imageType"]: return WIC_RES_FAILED
+        image_type = kwargs["CreateImage"]["imageType"]
+        image_id = self.find_image(image_type)
+        if not image_id: 
+            kwargs["CreateImage"]["result"] = WIC_RES_FAILED
+            kwargs["CreateImage"]["imageId"] = None
+        else:
+            kwargs["CreateImage"]["result"] = WIC_RES_SUCCESS
+            kwargs["CreateImage"]["imageId"] = image_id
+        return kwargs
+        
+    def DeleteImage(self, **kwargs):
+        kwargs["DeleteImage"]["result"] = WIC_RES_FAILED
+        return kwargs
+        
         
 
 if __name__ == '__main__':
@@ -384,7 +482,8 @@ if __name__ == '__main__':
         'netSpeed': 10,
         'timestamp': "timestamp",
         }
-    res = c.wic_update_netspeed(**params)
+    #res = c.wic_update_netspeed(**params)
+    res = c.find_image("win2008")
     print res
     #result = c.wic_add_user(userName = "test", password = "123456")
     #result, volume_id = c.wic_volume_create(5)
