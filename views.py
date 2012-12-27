@@ -5,19 +5,11 @@ from spyne.service import ServiceBase
 from spyne.model.primitive import AnyDict, AnyXml
 from spyne.server.django import DjangoApplication
 from spyne.util.xml import get_xml_as_object
-from spyne.util.odict import odict
 from django.views.decorators.csrf import csrf_exempt
+from .utils import clear_list
 
 from .wic.wic_client import wic_client
 c = wic_client()
-
-def clear_list(params):
-    for k, v in params.items():
-        if isinstance(v, list) and len(v) == 1:
-            params[k] = v[0]
-            if isinstance(v[0], dict) or isinstance(v[0], odict):
-                params[k] = clear_list(v[0])
-    return params
 
 class WebService(ServiceBase):
 
