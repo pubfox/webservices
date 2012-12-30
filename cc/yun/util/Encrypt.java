@@ -16,10 +16,10 @@ public class Encrypt {
 		this.password = password;
 	}
 	/** 
-     * åŠ å¯† 
+     * ¼ÓÃÜ 
      *  
-     * @param content éœ€è¦åŠ å¯†çš„å†…å®¹ 
-     * @param password  åŠ å¯†å¯†ç  
+     * @param content ĞèÒª¼ÓÃÜµÄÄÚÈİ 
+     * @param password  ¼ÓÃÜÃÜÂë 
      * @return 
      */  
     public static byte[] encrypt(String content, String password) {  
@@ -29,19 +29,19 @@ public class Encrypt {
                     SecretKey secretKey = kgen.generateKey();  
                     byte[] enCodeFormat = secretKey.getEncoded();  
                     SecretKeySpec key = new SecretKeySpec(enCodeFormat, "AES");  
-                    Cipher cipher = Cipher.getInstance("AES");// åˆ›å»ºå¯†ç å™¨   
+                    Cipher cipher = Cipher.getInstance("AES");// ´´½¨ÃÜÂëÆ÷   
                     byte[] byteContent = content.getBytes("utf-8");  
-                    cipher.init(Cipher.ENCRYPT_MODE, key);// åˆå§‹åŒ–   
+                    cipher.init(Cipher.ENCRYPT_MODE, key);// ³õÊ¼»¯   
                     byte[] result = cipher.doFinal(byteContent);  
-                    return result; // åŠ å¯†   
+                    return result; // ¼ÓÃÜ   
             } catch (Exception e) {  
                     e.printStackTrace();  
             } 
             return null;  
     }  
-    /**è§£å¯† 
-     * @param content  å¾…è§£å¯†å†…å®¹ 
-     * @param password è§£å¯†å¯†é’¥ 
+    /**½âÃÜ 
+     * @param content  ´ı½âÃÜÄÚÈİ 
+     * @param password ½âÃÜÃÜÔ¿ 
      * @return 
      */  
     public static String decrypt(byte[] content, String password) {  
@@ -51,17 +51,17 @@ public class Encrypt {
                      SecretKey secretKey = kgen.generateKey();  
                      byte[] enCodeFormat = secretKey.getEncoded();  
                      SecretKeySpec key = new SecretKeySpec(enCodeFormat, "AES");              
-                     Cipher cipher = Cipher.getInstance("AES");// åˆ›å»ºå¯†ç å™¨   
-                    cipher.init(Cipher.DECRYPT_MODE, key);// åˆå§‹åŒ–   
+                     Cipher cipher = Cipher.getInstance("AES");// ´´½¨ÃÜÂëÆ÷   
+                    cipher.init(Cipher.DECRYPT_MODE, key);// ³õÊ¼»¯   
                     byte[] result = cipher.doFinal(content);  
-                    return new String(result); // åŠ å¯†   
+                    return new String(result); // ¼ÓÃÜ   
             } catch (Exception e) {  
                     e.printStackTrace();  
             } 
             return null;  
     }  
     
-    //å°†2è¿›åˆ¶è½¬ç§»æˆ16è¿›åˆ¶
+    //½«2½øÖÆ×ªÒÆ³É16½øÖÆ
     public static String parseByte2HexStr(byte buf[]){
     	StringBuffer sb=new StringBuffer();
     	for(int i=0;i<buf.length;i++){
@@ -74,7 +74,7 @@ public class Encrypt {
     	return sb.toString();
     }
     
-    ////å°†16è¿›åˆ¶è½¬ç§»æˆ2è¿›åˆ¶
+    ////½«16½øÖÆ×ªÒÆ³É2½øÖÆ
     public static byte[] parseHexStr2Byte(String hexStr){
     	if(hexStr.length()<1)
     		return null;
@@ -88,9 +88,9 @@ public class Encrypt {
     	}
      
     public static void main(String args[]) throws UnsupportedEncodingException {
-    	System.out.println("åŸæ–‡:"+"123edsss");
-    	System.out.println("åŠ å¯†:"+(parseByte2HexStr(Encrypt.encrypt("123edsss", "qweeee"))));
-    	System.out.println("è§£å¯†:"+Encrypt.decrypt(parseHexStr2Byte(parseByte2HexStr(Encrypt.encrypt("123edsss", "qweeee"))),"qweeee"));
+    	System.out.println("Ô­ÎÄ:"+"123edsss");
+    	System.out.println("¼ÓÃÜ:"+(parseByte2HexStr(Encrypt.encrypt("123edsss", "qweeee"))));
+    	System.out.println("½âÃÜ:"+Encrypt.decrypt(parseHexStr2Byte(parseByte2HexStr(Encrypt.encrypt("123edsss", "qweeee"))),"qweeee"));
     }
     
 
