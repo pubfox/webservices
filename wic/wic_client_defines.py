@@ -10,6 +10,21 @@ default_flavor     = "m1.tiny"
 default_images     = [ "linux_tty" ] 
 default_password   = "123456"
 default_sec_desc   = "secgroup description"
+default_keypair    = "key"
+default_max_count  = 1
+default_min_count  = 1
+
+default_ins_name   = 'admin'
+default_ins_pass   = 'admin'
+default_reservationId = '123456'
+default_vmname     = 'vmname'
+default_privateDnsName = '192.168.133.1'
+default_dnsName    = '8.8.8.8'
+default_mac        = 'aa:bb:cc:dd:ee'
+
+default_try_times  = 200
+default_sleep_time = 5
+
 instance_prefix    = "Chuandge_"
 ins_list           = []
 control_node       = ["show-01"]
