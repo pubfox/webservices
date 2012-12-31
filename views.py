@@ -2,7 +2,7 @@ from spyne.application import Application
 from spyne.decorator import srpc
 from spyne.protocol.soap import Soap11
 from spyne.service import ServiceBase
-from spyne.model.primitive import AnyDict, String
+from spyne.model.primitive import AnyXml, AnyDict, String
 from spyne.server.django import DjangoApplication
 from spyne.util.xml import get_xml_as_object
 from django.views.decorators.csrf import csrf_exempt
@@ -23,6 +23,7 @@ class WebService(ServiceBase):
     @srpc(String, _returns=AnyDict)
     def call(xml):
         xml = EncryptHandler.get_decrypt_by_password(xml, ENCRYPT_PASSWORD)
+        xml = AnyXml.from_string(xml)
         params = get_xml_as_object(xml, AnyDict)
         params = clear_list(params)
         method = get_method(params)
