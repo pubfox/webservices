@@ -1,7 +1,7 @@
 import unittest
 
 from jnius import autoclass as Java
-EncryptHandler = Java('cc.yun.util.Encrypt')
+EncryptHandler = Java('cc.yun.util.EncryptTest')
 
 class TestJavaHandler(unittest.TestCase):
 
