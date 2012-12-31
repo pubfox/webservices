@@ -1,3 +1,4 @@
+#coding=utf8
 import unittest
 
 from jnius import autoclass as Java
