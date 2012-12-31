@@ -1,4 +1,4 @@
-package cc.yun.util;
+package openstack_dashboard_webservices.cc.yun.util;
 
 import java.io.UnsupportedEncodingException;
 import java.security.SecureRandom;
@@ -15,13 +15,6 @@ public class Encrypt {
 		super();
 		this.password = password;
 	}
-	/** 
-     * 加密 
-     *  
-     * @param content 需要加密的内容 
-     * @param password  加密密码 
-     * @return 
-     */  
     public static byte[] encrypt(String content, String password) {  
             try {             
                     KeyGenerator kgen = KeyGenerator.getInstance("AES");  
@@ -29,21 +22,16 @@ public class Encrypt {
                     SecretKey secretKey = kgen.generateKey();  
                     byte[] enCodeFormat = secretKey.getEncoded();  
                     SecretKeySpec key = new SecretKeySpec(enCodeFormat, "AES");  
-                    Cipher cipher = Cipher.getInstance("AES");// 创建密码器   
+                    Cipher cipher = Cipher.getInstance("AES");
                     byte[] byteContent = content.getBytes("utf-8");  
-                    cipher.init(Cipher.ENCRYPT_MODE, key);// 初始化   
+                    cipher.init(Cipher.ENCRYPT_MODE, key);
                     byte[] result = cipher.doFinal(byteContent);  
-                    return result; // 加密   
+                    return result; 
             } catch (Exception e) {  
                     e.printStackTrace();  
             } 
             return null;  
     }  
-    /**解密 
-     * @param content  待解密内容 
-     * @param password 解密密钥 
-     * @return 
-     */  
     public static String decrypt(byte[] content, String password) {  
             try {  
                      KeyGenerator kgen = KeyGenerator.getInstance("AES");  
@@ -51,17 +39,16 @@ public class Encrypt {
                      SecretKey secretKey = kgen.generateKey();  
                      byte[] enCodeFormat = secretKey.getEncoded();  
                      SecretKeySpec key = new SecretKeySpec(enCodeFormat, "AES");              
-                     Cipher cipher = Cipher.getInstance("AES");// 创建密码器   
-                    cipher.init(Cipher.DECRYPT_MODE, key);// 初始化   
+                     Cipher cipher = Cipher.getInstance("AES");
+                    cipher.init(Cipher.DECRYPT_MODE, key);
                     byte[] result = cipher.doFinal(content);  
-                    return new String(result); // 加密   
-            } catch (Exception e) {  
+                    return new String(result);
+            } catch (Exception e) { 
                     e.printStackTrace();  
             } 
             return null;  
     }  
     
-    //将2进制转移成16进制
     public static String parseByte2HexStr(byte buf[]){
     	StringBuffer sb=new StringBuffer();
     	for(int i=0;i<buf.length;i++){
@@ -74,7 +61,6 @@ public class Encrypt {
     	return sb.toString();
     }
     
-    ////将16进制转移成2进制
     public static byte[] parseHexStr2Byte(String hexStr){
     	if(hexStr.length()<1)
     		return null;
@@ -86,11 +72,13 @@ public class Encrypt {
     		}
     	return result;
     	}
+
+    public static String get_decrypt_by_password(String hexStr, String password){
+        return decrypt(parseHexStr2Byte(hexStr), password);
+    }
      
     public static void main(String args[]) throws UnsupportedEncodingException {
-    	System.out.println("原文:"+"123edsss");
-    	System.out.println("加密:"+(parseByte2HexStr(Encrypt.encrypt("123edsss", "qweeee"))));
-    	System.out.println("解密:"+Encrypt.decrypt(parseHexStr2Byte(parseByte2HexStr(Encrypt.encrypt("123edsss", "qweeee"))),"qweeee"));
+        System.out.println(parseByte2HexStr(encrypt("123edsss", "qweeee")));
     }
     
 

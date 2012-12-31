@@ -10,10 +10,7 @@ def clear_list(params):
     return params
 
 def get_method(params):
+    '''Get the method key from params'''
     for k in params.keys():
         if k != 'company' and k != 'requestId':
             return k
-
-def xml_decrypt(xml):
-
-    return xml
