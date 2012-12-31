@@ -93,12 +93,22 @@ public class Encrypt {
     		}
     	return result;
     	}
+    	
+     /**
+	 * soap加密接口   
+	 * @param content xml明文
+	 * @param password 密码
+	 * @return 16进制密文
+	 */
+	public static String get_encrypt_by_password(String content, String password){
+		return parseByte2HexStr(encrypt(content, password));
+	}
      
      /**
-	 * soap调用接口   
+	 * soap解密接口   
 	 * @param hexStr 加密后的xml文本
 	 * @param password 密码
-	 * @return
+	 * @return 明文
 	 */
 	public static String get_decrypt_by_password(String hexStr, String password){
 		return decrypt(parseHexStr2Byte(hexStr), password);
