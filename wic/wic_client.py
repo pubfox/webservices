@@ -9,6 +9,7 @@ import re
 import os
 import urllib2
 import wic_utils
+import threading
 from urlparse import urlparse
 from wic_client_defines import *
 #from wic_floating import *
@@ -50,8 +51,27 @@ class Base(object):
         self.host_map = {}
         self.img_dict = {}
         self.ins_list = []
+        self.flavor_ls = []
         self.host_len = wic_utils.get_hostmap(self.host_map)
+        
+    def flavor_list(self):
+        uri = self.apiurl + "/flavors"
+        http = httplib2.Http()
+        resp, content = http.request (uri, method = "GET", headers=self.headers)
+        if resp.status == 200:
+            data = json.loads(content)
+            #print data
+            self.flavor_ls = data["flavors"]
+            return len(self.flavor_ls)
+        return None
     
+    def flavor_find(self, id = None, vcpu = None, ram = None):
+        if not id: return
+        for fl in self.flavor_ls:
+            if fl["id"] == str(id):
+                return fl["links"][0]["href"]
+        return None
+            
     def img_list(self):
         uri = self.apiurl + "/images"
         http = httplib2.Http()
@@ -116,8 +136,35 @@ class Base(object):
             return WIC_RES_SUCCESS, userId
         return WIC_RES_FAILED, None
     
-    def instance_create(self):
-        pass
+    def instance_create(self, request_id, image_ref, flavor_ref, key_name = default_keypair):
+        instance_name = "ins_" + str(request_id)
+        uri = self.apiurl + "/servers"
+        body = {
+                        "server" : {
+                                        "name" : instance_name,
+                                        "imageRef" : image_ref,
+                                        "key_name" : key_name,
+                                        "flavorRef" : flavor_ref,
+                                        "max_count" : default_max_count,
+                                        "min_count" : default_min_count
+                                   }
+                       }
+        body = json.dumps(body)
+        http = httplib2.Http()
+        resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        if resp.status != 200 and resp.status != 202:
+            return WIC_RES_FAILED, None
+        data = json.loads(content)
+        ins_id = data["server"]["id"]
+        return WIC_RES_SUCCESS, ins_id
+    
+    def instance_show(self, ins_id):
+        uri = self.apiurl + "/servers/" + str(ins_id)
+        http = httplib2.Http()
+        resp, content = http.request (uri, method = "GET", headers=self.headers)
+        if resp.status != 200 and resp.status != 202: return WIC_RES_FAILED
+        data = json.loads(content)
+        return WIC_RES_SUCCESS, data["server"]["status"]
     
     def secgroup_show(self):
         uri = self.apiurl + str('/os-security-groups')
@@ -320,6 +367,74 @@ class wic_client(Base):
         kwargs["CreateUser"]["userId"] = userId
         return kwargs
     
+    def Create(self, **kwargs):
+        if not kwargs["Create"]["CreateHost"]["hostSpecId"]:
+            return WIC_RES_FAILED
+        flavor_id = kwargs["Create"]["CreateHost"]["hostSpecId"]
+        group_name = kwargs["Create"]["CreateHost"]["groupName"]
+        os_name = kwargs["Create"]["CreateHost"]["os"]
+        netspeed = kwargs["Create"]["CreateIp"]["netSpeed"]
+        disk = kwargs["Create"]["CreateDisk"]["disk"]
+        n = self.flavor_list()
+        flavor_ref = self.flavor_find(id = flavor_id)
+        image_id = self.find_image(os_name)
+        image_ref = self.apiurl + "/images/" + str(image_id)
+        request_id = kwargs["requestId"]
+        res, ins_id = self.instance_create(request_id, image_ref, flavor_ref)
+        kwargs["Create"]["CreateHost"]["result"] = res
+        kwargs["Create"]["CreateHost"]["instanceId"] = ins_id
+        kwargs["Create"]["CreateHost"]["imageId"] = image_id
+        kwargs["Create"]["CreateHost"]["privateIp"] = None
+        kwargs["Create"]["CreateHost"]["osUserName"] = default_ins_name
+        kwargs["Create"]["CreateHost"]["osPassword"] = default_ins_pass
+        kwargs["Create"]["CreateHost"]["reservationId"] = default_reservationId
+        kwargs["Create"]["CreateHost"]["vmName"] = default_vmname
+        kwargs["Create"]["CreateHost"]["privateDnsName"] = default_privateDnsName
+        kwargs["Create"]["CreateHost"]["dnsName"] = default_dnsName
+        kwargs["Create"]["CreateHost"]["keyName"] = default_keypair
+        kwargs["Create"]["CreateHost"]["amiLaunchIndex"] = None
+        kwargs["Create"]["CreateHost"]["instanceType"] = flavor_id
+        kwargs["Create"]["CreateHost"]["placement"] = None
+        kwargs["Create"]["CreateHost"]["kernelId"] = os_name
+        kwargs["Create"]["CreateHost"]["ramvolumeId"] = 0
+        kwargs["Create"]["CreateHost"]["isEnableHa"] = False
+        kwargs["Create"]["CreateHost"]["vpcId"] = 0
+        kwargs["Create"]["CreateHost"]["mac"] = default_mac
+        kwargs["Create"]["CreateHost"]["ipAddress"] = None
+        kwargs["Create"]["CreateHost"]["rateLimit"] = netspeed
+        kwargs["Create"]["CreateHost"]["vmHostName"] = "ins_" + str(request_id)
+        kwargs["Create"]["CreateHost"]["vncPort"] = 0
+        kwargs["Create"]["CreateHost"]["snapshotId"] = 0
+        kwargs["Create"]["CreateHost"]["sysVolumeId"] = 0
+        disk_thread = threading.Thread(target = self.asynchronous_createDisk, args = (disk, ins_id))
+        disk_thread.start()
+        net_thread = threading.Thread(target = self.asynchronous_netspeed, args = (netspeed, ins_id))
+        net_thread.start()
+        return kwargs
+    
+    def asynchronous_createDisk(self, size, ins_id):
+        res, volume_id = self.volume_create(size)
+        if res == WIC_RES_FAILED: return
+        res = self.waiting_ins_ready(ins_id)
+        if res == WIC_RES_FAILED: return
+        res = self.volume_attach(ins_id, volume_id)
+        return res
+    
+    def asynchronous_netspeed(self, netspeed, ins_id):
+        res = self.waiting_ins_ready(ins_id)
+        if res == WIC_RES_FAILED: return
+        res, hostip = self.netspeed_update(ins_id, netspeed)
+        return res
+    
+    def waiting_ins_ready(self, ins_id):
+        try_times = 0
+        while try_times < default_try_times:
+            res, status = self.instance_show(ins_id)
+            if status == 'ACTIVE': return WIC_RES_SUCCESS
+            try_times += 1
+            time.sleep(default_sleep_time)
+        return WIC_RES_FAILED
+        
     def CreateSecurityGroup(self, **kwargs):
         if not kwargs["CreateSecurityGroup"]["groupName"]:
             kwargs["CreateSecurityGroup"]["result"] = WIC_RES_FAILED
@@ -413,11 +528,11 @@ class wic_client(Base):
         return kwargs
     
     def ShutdownHost(self, **kwargs):
-        if not kwargs["ShutdownHos"]["instanceId"]:
-            kwargs["ShutdownHos"]["result"] = WIC_RES_FAILED
+        if not kwargs["ShutdownHost"]["instanceId"]:
+            kwargs["ShutdownHost"]["result"] = WIC_RES_FAILED
             return kwargs
-        ins_id = kwargs["ShutdownHos"]["instanceId"]
-        kwargs["ShutdownHos"]["result"] = self.instance_pause(ins_id)
+        ins_id = kwargs["ShutdownHost"]["instanceId"]
+        kwargs["ShutdownHost"]["result"] = self.instance_pause(ins_id)
         return kwargs
         
     def ApplyIp(self, *args, **kwargs):
@@ -492,14 +607,32 @@ class wic_client(Base):
 if __name__ == '__main__':
     c = wic_client()
     #result = c.wic_secgroup_show(groupName = "default")
-    params = {'requestId':"requestId"}
+    '''params = {'requestId':"requestId"}
     params['UpdateNetSpeed'] = {
         'instanceId':'93707c4e-f547-4b13-9358-c18d8ff08555',
         'netSpeed': 10,
         'timestamp': "timestamp",
         }
-    res = c.UpdateNetSpeed(**params)
+    res = c.UpdateNetSpeed(**params)'''
+    
+    
+    params = {'requestId':"request456"}
+    params["Create"] = {"CreateHost" : {'userId' : '123456',
+                                        'core' : 1,
+                                        'memory' : 1024, 
+                                        'groupName' : 'default',
+                                        'hostSpecId' : 2,
+                                        'os' : 'ubuntu1204'
+                                        },
+                        "CreateIp": {'transactionId': 'transactionId',
+                                    'netSpeed' : 2,
+                                    'ip' : None},
+                        "CreateDisk" : {"transactionId" : "transactionId123",
+                                        "disk" : 5,
+                                        }
+                        }
     #res = c.find_image("win2008")
+    res = c.Create(**params)
     print res
     #result = c.wic_add_user(userName = "test", password = "123456")
     #result, volume_id = c.wic_volume_create(5)
