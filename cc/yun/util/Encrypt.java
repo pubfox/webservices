@@ -1,4 +1,4 @@
-package cc.yun.util;
+package openstack_dashboard_webservices.cc.yun.util;
 
 import java.io.UnsupportedEncodingException;
 import java.security.SecureRandom;
