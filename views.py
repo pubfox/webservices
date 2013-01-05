@@ -7,7 +7,7 @@ from spyne.server.django import DjangoApplication
 from spyne.util.xml import get_xml_as_object
 from django.views.decorators.csrf import csrf_exempt
 from .utils import clear_list, get_method
-#from .settings import ENCRYPT_PASSWORD, ENCRYPT_CLASS_PATH
+from .settings import ENCRYPT_PASSWORD, ENCRYPT_CLASS_PATH
 
 #Install pyjnius steps:
 #apt-get install build-essential openjdk-7-jdk openjdk-7-jre python-dev
