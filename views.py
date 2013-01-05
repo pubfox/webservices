@@ -12,8 +12,11 @@ from .utils import clear_list, get_method
 #Install pyjnius steps:
 #apt-get install build-essential openjdk-7-jdk openjdk-7-jre python-dev
 #python setup.py install
-from jnius import autoclass as Java
-EncryptHandler = Java(ENCRYPT_CLASS_PATH)
+try:
+    from jnius import autoclass as Java
+    EncryptHandler = Java(ENCRYPT_CLASS_PATH)
+except:
+    pass
 
 from .wic.wic_client import wic_client
 c = wic_client()
