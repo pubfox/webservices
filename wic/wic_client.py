@@ -289,7 +289,26 @@ class Base(object):
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
         if resp.status == 200:
             return WIC_RES_SUCCESS, content["floating_ip"]["ip"]
-        return WIC_RES_FAILED, None        
+        return WIC_RES_FAILED, None
+    
+    def floating_ip_delete(self, ipaddr):
+        uri = self.apiurl + '/os-floating-ips'
+        id = None
+        http = httplib2.Http()
+        resp, content = http.request(uri, method = "GET", headers = self.headers)
+        if resp.status != 200:
+            return WIC_RES_FAILED
+        data = json.loads(content)
+        for floating_ip in data["floating_ips"]:
+            if floating_ip["ip"] == ipaddr:
+                id = floating_ip["id"]
+                break
+        if not id: return WIC_RES_FAILED
+        uri = self.apiurl + '/os-floating-ips/' + str(id)
+        resp, content = http.request(uri, method = "DELETE", headers = self.headers)
+        if resp.status == 200: return WIC_RES_SUCCESS
+        return WIC_RES_FAILED
+            
     
     def floating_ip_add(self, ins_id, ipaddr):
         uri = self.apiurl + "/servers/" + ins_id + "/action"
@@ -302,6 +321,13 @@ class Base(object):
         return WIC_RES_FAILED
     
     def floating_ip_remove(self, ins_id, ipaddr):
+        uri = self.apiurl + "/servers/" + ins_id + "/action"
+        body = {"removeFloatingIp": {"address": str(ipaddr)}}
+        body = json.dumps(body)
+        http = httplib2.Http()
+        resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        if resp.status == 200:
+            return WIC_RES_SUCCESS
         return WIC_RES_FAILED
     
     def netspeed_update(self, ins_id, netspeed):
@@ -498,7 +524,10 @@ class wic_client(Base):
         ins_id = kwargs["BindDisk"]["instanceId"]
         volume_id = kwargs["BindDisk"]["volumeId"]
         kwargs["BindDisk"]["timestamp"] = wic_utils.get_timestamp()
-        kwargs["BindDisk"]["result"] = self.volume_attach(ins_id, volume_id)
+        if kwargs["BindDisk"]["type"] == 1 or kwargs["BindDisk"]["type"] == str(1):
+            kwargs["BindDisk"]["result"] = self.volume_attach(ins_id, volume_id)
+        elif kwargs["BindDisk"]["type"] == 2 or kwargs["BindDisk"]["type"] == str(2):
+            kwargs["BindDisk"]["result"] = self.volume_dettach(ins_id, volume_id)
         return kwargs
     
     def wic_volume_dettach(self, *args, **kwargs):
@@ -536,8 +565,10 @@ class wic_client(Base):
         return kwargs
         
     def ApplyIp(self, *args, **kwargs):
-        if kwargs["ApplyIp"]["type"] == 1:
+        if kwargs["ApplyIp"]["type"] == 1 or kwargs["ApplyIp"]["type"] == str(1):
             kwargs["ApplyIp"]["result"], kwargs["ApplyIp"]["ip"] = self.floating_ip_create()
+        if kwargs["ApplyIp"]["type"] == 2 or kwargs["ApplyIp"]["type"] == str(2):
+            kwargs["ApplyIp"] = self.floating_ip_delete(kwargs["ApplyIp"]["ip"])
         return kwargs
     
     def BindIp(self, *args, **kwargs):
