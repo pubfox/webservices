@@ -186,7 +186,7 @@ class Base(object):
         uri = self.apiurl + str('/os-security-groups/') + str(secgroup_id)
         http = httplib2.Http()
         resp, content = http.request (uri, method = "DELETE", headers=self.headers)
-        if resp.status == 200:
+        if resp.status == 200 or resp.status == 202:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
         
@@ -201,10 +201,10 @@ class Base(object):
         return WIC_RES_FAILED
     
     def instance_delete(self, ins_id):
-        uri = self.apiurl + "/servers/" + id
+        uri = self.apiurl + "/servers/" + str(ins_id)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "DELETE", headers = self.headers)
-        if resp.status == 200:
+        if resp.status == 200 or resp.status == 202:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
     
@@ -241,7 +241,7 @@ class Base(object):
         body = json.dumps(body)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
-        if resp.status == 200:
+        if resp.status == 200 or resp.status == 202:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
     
@@ -249,15 +249,15 @@ class Base(object):
         uri = self.apiurl + "/servers/" + ins_id + "/os-volume_attachments/" + str(volume_id)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "DELETE", headers = self.headers)
-        if resp.status == 200:
+        if resp.status == 200 or resp.status == 202:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
     
     def volume_delete(self, volume_id):
-        uri = self.volumeurl + "/volumes/" + str(id)
+        uri = self.volumeurl + "/volumes/" + str(volume_id)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "DELETE", headers = self.headers)
-        if resp.status == 200:
+        if resp.status == 200 or resp.status == 202:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
     
@@ -267,7 +267,7 @@ class Base(object):
         body = json.dumps(body)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
-        if resp.status == 200:
+        if resp.status == 200 or resp.status == 202:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
     
@@ -549,10 +549,10 @@ class wic_client(Base):
         return kwargs
     
     def RestartHost(self, *args, **kwargs):
-        if not kwargs["RestartHost"].has_key("instanceId") or not kwargs["RestartHost"]["instaceId"]:
+        if not kwargs["RestartHost"].has_key("instanceId") or not kwargs["RestartHost"]["instanceId"]:
             kwargs["RestartHost"]["result"] = WIC_RES_FAILED
             return kwargs
-        ins_id = kwargs["RestartHost"]["instaceId"]
+        ins_id = kwargs["RestartHost"]["instanceId"]
         kwargs["RestartHost"]["result"] = self.instance_reboot(ins_id)
         return kwargs
     
@@ -648,7 +648,7 @@ if __name__ == '__main__':
     
     
     params = {'requestId':"request456"}
-    params["Create"] = {"CreateHost" : {'userId' : '123456',
+    '''params["Create"] = {"CreateHost" : {'userId' : '123456',
                                         'core' : 1,
                                         'memory' : 1024, 
                                         'groupName' : 'default',
@@ -662,8 +662,44 @@ if __name__ == '__main__':
                                         "disk" : 5,
                                         }
                         }
-    #res = c.find_image("win2008")
-    res = c.Create(**params)
+    res = c.Create(**params)'''
+    
+    '''params["DescribeSecurityGroup"] = {'userId' : '123456',
+                                       'transactionId': 'transactionId',
+                                       'groupName' : 'default',
+                                       }
+    res = c.DescribeSecurityGroup(**params)'''
+    '''params["CreateDisk"] = {'userId' : '123456',
+                                       'transactionId': 'transactionId',
+                                       'groupName' : 'default',
+                                       'disk' : 5,
+                                       }
+    res = c.CreateDisk(**params)'''
+    '''params["DelDisk"] = {'userId' : '123456',
+                                       'transactionId': 'transactionId',
+                                       'volumeId' : '13',
+                                       }
+    res = c.DelDisk(**params)'''
+    
+    '''params["BindDisk"] = {'userId' : '123456',
+                                       'transactionId': 'transactionId',
+                                       'volumeId' : '14',
+                                       'type' : '1',
+                                       'instanceId' : '888275bb-0775-41e0-8529-ae45cfdbec67',
+                                       }
+    res = c.BindDisk(**params)'''
+    
+    '''params["RestartHost"] = {'userId' : '123456',
+                                       'transactionId': 'transactionId',
+                                       'instanceId' : '888275bb-0775-41e0-8529-ae45cfdbec67',
+                                       }
+    res = c.RestartHost(**params)'''
+    '''params["DelHost"] = {'userId' : '123456',
+                                       'transactionId': 'transactionId',
+                                       'instanceId' : '888275bb-0775-41e0-8529-ae45cfdbec67',
+                                       }
+    res = c.DelHost(**params)'''
+    
     print res
     #result = c.wic_add_user(userName = "test", password = "123456")
     #result, volume_id = c.wic_volume_create(5)
