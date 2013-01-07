@@ -14,7 +14,7 @@ import logging
 logger = logging.getLogger('horizon')
 
 #Install pyjnius steps:
-#apt-get install build-essential openjdk-7-jdk openjdk-7-jre python-dev
+#apt-get install build-essential openjdk-7-jdk cython python-dev
 #python setup.py install
 try:
     from jnius import autoclass as Java
@@ -31,7 +31,7 @@ class WebService(ServiceBase):
     def call(xml):
         #Decrypt request
         xml = EncryptHandler.get_decrypt_by_password(xml, ENCRYPT_PASSWORD)
-        xml = etree.fromstring(xml)
+        xml = AnyXml.from_string(xml)
         #process
         params = get_xml_as_object(xml, AnyDict)
         params = clear_list(params)
@@ -41,11 +41,9 @@ class WebService(ServiceBase):
         res = getattr(c, method)(**params)
         #Encrypt response
         res = root_dict_to_etree({'response': res})
-        res = etree.tostring(res) #TODO encoding=...
+        res = etree.tostring(res, encoding='utf8')
         res = '<?xml version="1.0" encoding="UTF-8"?>' + res
-        res = EncryptHandler.get_encrypt_by_password(res, ENCRYPT_PASSWORD)
-        return res
-        
+        return EncryptHandler.get_encrypt_by_password(res, ENCRYPT_PASSWORD)
 
     @srpc(AnyXml, _returns=AnyDict)
     def test(xml):
