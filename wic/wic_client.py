@@ -377,10 +377,8 @@ class wic_client(Base):
     def AddUser(self, *args, **kwargs):
         if not kwargs["CreateUser"]["userName"]: return WIC_RES_FAILED
         username = kwargs["CreateUser"]["userName"]
-        if not kwargs.has_key("requestId") or not kwargs["requestId"]:
-            kwargs["requestId"] = default_requestId
-        if not kwargs["CreateUser"].has_key("password"):
-            kwargs["CreateUser"]["password"] = default_password
+        if not "instanceId" in kwargs["AddUser"].keys():
+            kwargs["Adduser"]["password"] = default_password
         password = kwargs["CreateUser"]["password"]
         if not kwargs.has_key("email"):
             kwargs["CreateUser"]["email"] = default_email
@@ -499,7 +497,7 @@ class wic_client(Base):
         return kwargs
     
     def DelHost(self, *args, **kwargs):
-        if not kwargs["DelHost"].has_key("instanceId") or not kwargs["DelHost"]["instanceId"]:
+        if not "instanceId" in kwargs["DelHost"].keys() or not kwargs["DelHost"]["instanceId"]:
             kwargs["DelHost"]["result"] = WIC_RES_FAILED
             return kwargs
         ins_id = kwargs["DelHost"]["instanceId"]
@@ -508,7 +506,7 @@ class wic_client(Base):
         return kwargs
     
     def CreateDisk(self, *args, **kwargs):
-        if not kwargs["CreateDisk"].has_key("disk") or not kwargs["CreateDisk"]["disk"]:
+        if not "disk" in kwargs["CreateDisk"].keys() or not kwargs["CreateDisk"]["disk"]:
             kwargs["CreateDisk"]["result"] = WIC_RES_FAILED
             return kwargs
         size = kwargs["CreateDisk"]["disk"]
@@ -517,8 +515,8 @@ class wic_client(Base):
         return kwargs
     
     def BindDisk(self, *args, **kwargs):
-        if not kwargs["BindDisk"].has_key("instanceId") or not kwargs["BindDisk"]["instanceId"] or \
-        not kwargs["BindDisk"].has_key("volumeId") or not kwargs["BindDisk"]["volumeId"]:
+        if not "instanceId" in kwargs["BindDisk"].keys() or not kwargs["BindDisk"]["instanceId"] or \
+        not "volumeId" in kwargs["BindDisk"].keys() or not kwargs["BindDisk"]["volumeId"]:
             kwargs["BindDisk"]["result"] = WIC_RES_FAILED
             return kwargs
         ins_id = kwargs["BindDisk"]["instanceId"]
@@ -542,14 +540,14 @@ class wic_client(Base):
         return kwargs
     
     def DelDisk(self, *args, **kwargs):
-        if not kwargs["DelDisk"].has_key("volumeId") or not kwargs["DelDisk"]["volumeId"]:
+        if not "volumeId" in kwargs["DelDisk"].keys() or not kwargs["DelDisk"]["volumeId"]:
             kwargs["DelDisk"]["result"] = WIC_RES_FAILED
         volume_id = kwargs["DelDisk"]["volumeId"]
         kwargs["DelDisk"]["result"] = self.volume_delete(volume_id)
         return kwargs
     
     def RestartHost(self, *args, **kwargs):
-        if not kwargs["RestartHost"].has_key("instanceId") or not kwargs["RestartHost"]["instanceId"]:
+        if not "instanceId" in kwargs["RestartHost"].keys() or not kwargs["RestartHost"]["instanceId"]:
             kwargs["RestartHost"]["result"] = WIC_RES_FAILED
             return kwargs
         ins_id = kwargs["RestartHost"]["instanceId"]
@@ -572,8 +570,8 @@ class wic_client(Base):
         return kwargs
     
     def BindIp(self, *args, **kwargs):
-        if not kwargs["BindIp"].has_key("instanceId") or not kwargs["BindIp"]["instanceId"] or \
-        not kwargs["BindIp"].has_key("ip") or not kwargs["BindIp"]["ip"]:
+        if not "instanceId" in kwargs["BindIp"].keys() or not kwargs["BindIp"]["instanceId"] or \
+        not "ip" in kwargs["BindIp"].keys() or not kwargs["BindIp"]["ip"]:
             kwargs["BindIp"]["result"] = WIC_RES_FAILED
             return kwargs
         ins_id = kwargs["BindIp"]["instanceId"]
@@ -594,8 +592,6 @@ class wic_client(Base):
             kwargs["UpdateNetSpeed"]["result"] = WIC_RES_FAILED
             return kwargs
         ins_id = kwargs["UpdateNetSpeed"]["instanceId"]
-        if not kwargs.has_key("requestId") or not kwargs["requestId"]:
-            kwargs["requestId"] = default_requestId
         if not kwargs["UpdateNetSpeed"]["netSpeed"]: return WIC_RES_FAILED
         netspeed = kwargs["UpdateNetSpeed"]["netSpeed"]
         kwargs["UpdateNetSpeed"]["result"], hostip  = self.netspeed_update(ins_id, netspeed)
