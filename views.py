@@ -31,6 +31,7 @@ class WebService(ServiceBase):
     def call(xml):
         #Decrypt request
         xml = EncryptHandler.get_decrypt_by_password(xml, ENCRYPT_PASSWORD)
+        logger.error(xml)
         xml = etree.fromstring(xml)
         #process
         params = get_xml_as_object(xml, AnyDict)
