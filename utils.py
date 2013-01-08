@@ -14,3 +14,4 @@ def get_method(params):
     for k in params.keys():
         if k != 'company' and k != 'requestId':
             return k
+    raise Exception, 'No method name found in xml request'
