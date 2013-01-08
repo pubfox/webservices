@@ -204,7 +204,7 @@ class Base(object):
         uri = self.apiurl + "/servers/" + str(ins_id)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "DELETE", headers = self.headers)
-        if resp.status == 200 or resp.status == 202:
+        if resp.status == 200 or resp.status == 202 or resp.status == 204:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
     
@@ -565,6 +565,7 @@ class wic_client(Base):
         return kwargs
         
     def ApplyIp(self, *args, **kwargs):
+        kwargs["ApplyIp"]["timestamp"] = wic_utils.get_timestamp()
         if kwargs["ApplyIp"]["type"] == 1 or kwargs["ApplyIp"]["type"] == str(1):
             kwargs["ApplyIp"]["result"], kwargs["ApplyIp"]["ip"] = self.floating_ip_create()
         if kwargs["ApplyIp"]["type"] == 2 or kwargs["ApplyIp"]["type"] == str(2):
@@ -699,6 +700,11 @@ if __name__ == '__main__':
                                        'instanceId' : '888275bb-0775-41e0-8529-ae45cfdbec67',
                                        }
     res = c.DelHost(**params)'''
+    params["DelHost"] = {'userId' : '123456',
+                                       'transactionId': 'transactionId',
+                                       'instanceId' : '0ff6684b-dfee-4bfa-9f16-9826eb63f1bd',
+                                       }
+    res = c.DelHost(**params)
     
     print res
     #result = c.wic_add_user(userName = "test", password = "123456")
