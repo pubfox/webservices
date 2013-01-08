@@ -31,12 +31,7 @@ class WebService(ServiceBase):
     def call(xml):
         #Decrypt request
         xml = EncryptHandler.get_decrypt_by_password(xml, ENCRYPT_PASSWORD)
-<<<<<<< HEAD
-        logger.error(xml)
-        xml = etree.fromstring(xml)
-=======
         xml = AnyXml.from_string(xml)
->>>>>>> 7773c3c30b2b5d8e2a4f7a86064a044277e8ce8f
         #process
         params = get_xml_as_object(xml, AnyDict)
         params = clear_list(params)
