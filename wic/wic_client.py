@@ -374,17 +374,15 @@ class wic_client(Base):
     def __init__(self, tenant = default_tenant):
         super(wic_client, self).__init__()
     
-    def AddUser(self, *args, **kwargs):
+    def CreateUser(self, *args, **kwargs):
         if not kwargs["CreateUser"]["userName"]: return WIC_RES_FAILED
         username = kwargs["CreateUser"]["userName"]
         if not "instanceId" in kwargs["AddUser"].keys():
-            kwargs["Adduser"]["password"] = default_password
+            kwargs["CreateUser"]["password"] = default_password
         password = kwargs["CreateUser"]["password"]
         if not kwargs.has_key("email"):
             kwargs["CreateUser"]["email"] = default_email
         email = kwargs["CreateUser"]["email"]
-        if not kwargs["CreateUser"].has_key("tenantId"):
-            kwargs["CreateUser"]["tenantId"] = self.tenant_id
         tenantId = kwargs["CreateUser"]["tenantId"]
         kwargs["CreateUser"]["timestamp"] = wic_utils.get_timestamp()
         status, userId = self.add_user(username, password, email, tenantId)
