@@ -383,7 +383,7 @@ class wic_client(Base):
         if not kwargs.has_key("email"):
             kwargs["CreateUser"]["email"] = default_email
         email = kwargs["CreateUser"]["email"]
-        tenantId = kwargs["CreateUser"]["tenantId"]
+        tenantId = self.tenant_id
         kwargs["CreateUser"]["timestamp"] = wic_utils.get_timestamp()
         status, userId = self.add_user(username, password, email, tenantId)
         kwargs["CreateUser"]["userId"] = userId
