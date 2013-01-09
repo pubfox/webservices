@@ -377,7 +377,7 @@ class wic_client(Base):
     def CreateUser(self, *args, **kwargs):
         if not kwargs["CreateUser"]["userName"]: return WIC_RES_FAILED
         username = kwargs["CreateUser"]["userName"]
-        if not "instanceId" in kwargs["AddUser"].keys():
+        if not "instanceId" in kwargs["CreateUser"].keys():
             kwargs["CreateUser"]["password"] = default_password
         password = kwargs["CreateUser"]["password"]
         if not kwargs.has_key("email"):
