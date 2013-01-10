@@ -312,11 +312,11 @@ class Base(object):
     
     def floating_ip_add(self, ins_id, ipaddr):
         uri = self.apiurl + "/servers/" + ins_id + "/action"
-        body = {"addFloatingIp": {"address": ip}}
+        body = {"addFloatingIp": {"address": ipaddr}}
         body = json.dumps(body)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
-        if resp.status == 200:
+        if resp.status == 200 or resp.status == 202:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
     
@@ -326,7 +326,7 @@ class Base(object):
         body = json.dumps(body)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
-        if resp.status == 200:
+        if resp.status == 200 or resp.status == 202:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
     
@@ -694,11 +694,12 @@ if __name__ == '__main__':
                                        'instanceId' : '888275bb-0775-41e0-8529-ae45cfdbec67',
                                        }
     res = c.DelHost(**params)'''
-    params["DelHost"] = {'userId' : '123456',
+    params["BindIp"] = {'userId' : '123456',
                                        'transactionId': 'transactionId',
-                                       'instanceId' : '0ff6684b-dfee-4bfa-9f16-9826eb63f1bd',
+                                       'instanceId' : '7ecd3a12-da59-411f-ba75-15054018993d',
+                                       'ip' : "172.18.200.18",
                                        }
-    res = c.DelHost(**params)
+    res = c.BindIp(**params)
     
     print res
     #result = c.wic_add_user(userName = "test", password = "123456")
