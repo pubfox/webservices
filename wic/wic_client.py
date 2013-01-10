@@ -351,18 +351,18 @@ class Base(object):
         return WIC_RES_SUCCESS, hostip
     
     def volume_snapshot_create(self, volume_id):
-        uri = self.apiurl + "/snapshots"
-        body = {"snapshot": {"display_name": null, "force": false, "display_description": null, "volume_id": volume_id}}
+        uri = self.volumeurl + "/snapshots"
+        body = {"snapshot": {"display_name": None, "force": False, "display_description": None, "volume_id": volume_id}}
         body = json.dumps(body)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
-        if resp.status == 200:
+        if resp.status == 200 or resp.status == 202:
             data = json.loads(content)
-            return WIC_RES_SUCCESS, content["snapshot"]["id"]
+            return WIC_RES_SUCCESS, str(data["snapshot"]["id"])
         return WIC_RES_FAILED, None
     
     def volume_snapshot_delete(self, snapshot_id):
-        uri = self.apiurl + "/snapshots/" + str(snapshot_id)
+        uri = self.volumeurl + "/snapshots/" + str(snapshot_id)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "DELETE", headers = self.headers)
         if resp.status == 200:
@@ -694,12 +694,12 @@ if __name__ == '__main__':
                                        'instanceId' : '888275bb-0775-41e0-8529-ae45cfdbec67',
                                        }
     res = c.DelHost(**params)'''
-    params["BindIp"] = {'userId' : '123456',
+    params["CreateSnapshot"] = {'userId' : '123456',
                                        'transactionId': 'transactionId',
                                        'instanceId' : '7ecd3a12-da59-411f-ba75-15054018993d',
-                                       'ip' : "172.18.200.18",
+                                       'volumeId' : "17",
                                        }
-    res = c.BindIp(**params)
+    res = c.CreateSnapshot(**params)
     
     print res
     #result = c.wic_add_user(userName = "test", password = "123456")
