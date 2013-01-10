@@ -365,7 +365,7 @@ class Base(object):
         uri = self.volumeurl + "/snapshots/" + str(snapshot_id)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "DELETE", headers = self.headers)
-        if resp.status == 200:
+        if resp.status == 200 or resp.status == 202:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
         
