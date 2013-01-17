@@ -1,3 +1,4 @@
+#coding=utf8
 ENCRYPT_PASSWORD = 'qweeee'
 ENCRYPT_CLASS_PATH = 'cc.yun.util.Encrypt'
 
@@ -9,7 +10,7 @@ METHOD_NAMES = {
 'BindDisk':'绑定/解绑磁盘',
 'DelDisk':'删除磁盘',
 'RestartHost':'重启虚机',
-' ShutdownHost ':'关闭虚机',
+'ShutdownHost':'关闭虚机',
 'CreateSecurityGroup':'创建安全组',
 'DescribeSecurityGroup':'查询安全组',
 'DelSecurityGroup':'删除安全组',
@@ -25,3 +26,6 @@ METHOD_NAMES = {
 'DeleteImage':'删除镜像',
 'StartHost':'开启虚机',
 }
+
+ID_SUCCESS = 0
+ID_FAIL = 1

@@ -57,7 +57,7 @@ def dict_to_etree(d, parent):
             child = etree.SubElement(parent, parent.tag)
             dict_to_etree(e, child)
     elif d is not None:
-        parent.text = unicode(d)
+        parent.text = unicode(str(d), 'utf8')
 
 def root_etree_to_dict(element, iterable=(list, list.append)):
     """Takes an xml root element and returns the corresponding dict. The second
