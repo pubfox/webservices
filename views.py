@@ -11,6 +11,9 @@ from .utils import clear_list, get_method
 from .settings import *
 from .etreeconv import root_dict_to_etree
 from lxml import etree
+from .wic.wic_client import wic_client
+c = wic_client()
+from .tasks import _handle_request
 import logging
 logger = logging.getLogger('horizon')
 
@@ -23,22 +26,18 @@ try:
 except:
     pass
 
-from .wic.wic_client import wic_client
-c = wic_client()
-
 def handle_request(params):
     method = get_method(params)
+    if not method:
+        return (ID_FAIL, '请求命令错误')
     method_name = METHOD_NAMES.get(method, method)
-    if not hasattr(c, method):
+    if not hasattr(wic_client, method):
         return (ID_FAIL, method_name+'暂未实现')
     try:
-        _handle_request(params)
+        _handle_request.delay(method, params)
         return (ID_SUCCESS, '请求'+method_name+'成功')
     except:
         return (ID_FAIL, '请求'+method_name+'失败')
-
-def _handle_request(params):
-    pass
 
 class WebService(ServiceBase):
 
