@@ -14,8 +14,6 @@ from lxml import etree
 from .wic.wic_client import wic_client
 c = wic_client()
 from .tasks import _handle_request
-import logging
-logger = logging.getLogger('horizon')
 
 #Install pyjnius steps:
 #apt-get install build-essential openjdk-7-jdk cython python-dev
@@ -52,8 +50,7 @@ class WebService(ServiceBase):
         #Handle request
         id, description = handle_request(params)
         res = root_dict_to_etree({'result': {'id': id, 'description': description}})
-        res = etree.tostring(res)
-        res = '<?xml version="1.0" encoding="UTF-8"?>' + res
+        res = '<?xml version="1.0" encoding="UTF-8"?>' + etree.tostring(res)
         return res
 
     @srpc(AnyXml, _returns=AnyDict)
