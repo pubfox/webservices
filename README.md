@@ -14,7 +14,7 @@ How to install
 settings.py 
 ===========
 ```python
-INSTALLED_APPS = ('webservices', )
+INSTALLED_APPS += ('webservices', )
 ```
 
 urls.py
