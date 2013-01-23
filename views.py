@@ -9,8 +9,6 @@ from spyne.util.xml import get_xml_as_object
 from django.views.decorators.csrf import csrf_exempt
 from .utils import clear_list, get_method
 from .settings import *
-from .etreeconv import root_dict_to_etree
-from lxml import etree
 from .wic.wic_client import wic_client
 c = wic_client()
 from .tasks import _handle_request
@@ -49,9 +47,12 @@ class WebService(ServiceBase):
         params = clear_list(params)
         #Handle request
         id, description = handle_request(params)
-        res = root_dict_to_etree({'result': {'id': id, 'description': description}})
-        res = '<?xml version="1.0" encoding="UTF-8"?>' + etree.tostring(res)
-        return res
+        res = '''<?xml version="1.0" encoding="UTF-8"?>
+                 <result>
+                   <id>%s</id>
+                   <description>%s</description>
+                 </result>''' % (id, description, )
+        return res.decode('utf8')
 
     @srpc(AnyXml, _returns=AnyDict)
     def test(xml):

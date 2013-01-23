@@ -39,11 +39,11 @@ except:
 @task
 def _handle_request(method, params):
     try:
-        print 'Request: ' + str(params)  
+        print 'Request: ' + str(params)
         res = getattr(c, method)(**params)
-        print 'Response:' + str(res)
+        print 'Result:  ' + str(res)
         res = root_dict_to_etree({'response': res})
-        res = '<?xml version="1.0" encoding="UTF-8"?>' + etree.tostring(res)
+        res = '<?xml version="1.0" encoding="UTF-8"?>' + etree.tostring(res, encoding='utf8')
         res = EncryptHandler.get_encrypt_by_password(res, ENCRYPT_PASSWORD)
         _call_back_result.delay(res)
     except Exception, exc:
@@ -52,8 +52,8 @@ def _handle_request(method, params):
 @task
 def _call_back_result(result):
     try:
-        print result
+        print 'CallBack:' + result
         res = call_back_client.service.invoke(in0=result)
-        print res
+        print 'Response:' + res
     except Exception, exc:
         raise _call_back_result.retry(exc=exc)
