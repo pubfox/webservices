@@ -30,7 +30,7 @@ BROKER_VHOST = "/"
 INSTALLED_APPS += ('djcelery', )
 '''
 #Start django-celery worker
-#python manage.py celeryd --loglevel=info
+#python manage.py celeryd -l info
 try:
     from celery.task import task
 except:
