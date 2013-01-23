@@ -43,7 +43,7 @@ def _handle_request(method, params):
         res = getattr(c, method)(**params)
         print 'Result:  ' + str(res)
         res = root_dict_to_etree({'response': res})
-        res = '<?xml version="1.0" encoding="UTF-8"?>' + etree.tostring(res, encoding='utf8')
+        res = etree.tostring(res, encoding='UTF-8', xml_declaration=True)
         res = EncryptHandler.get_encrypt_by_password(res, ENCRYPT_PASSWORD)
         _call_back_result.delay(res)
     except Exception, exc:
