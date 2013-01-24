@@ -55,7 +55,7 @@ class Base(object):
         self.host_len = wic_utils.get_hostmap(self.host_map)
         
     def flavor_list(self):
-        uri = self.apiurl + "/flavors"
+        uri = self.apiurl + "/flavors/detail"
         http = httplib2.Http()
         resp, content = http.request (uri, method = "GET", headers=self.headers)
         if resp.status == 200:
@@ -66,10 +66,14 @@ class Base(object):
         return None
     
     def flavor_find(self, id = None, vcpu = None, ram = None):
-        if not id: return
+        if id: 
+            for fl in self.flavor_ls:
+                if fl["id"] == str(id):
+                    return fl["links"][0]["href"]
         for fl in self.flavor_ls:
-            if fl["id"] == str(id):
+            if fl["vcpus"] == int(vcpu) and fl["ram"] == int(ram):
                 return fl["links"][0]["href"]
+        raise "not found flavor"
         return None
             
     def img_list(self):
@@ -390,15 +394,26 @@ class wic_client(Base):
         return kwargs
     
     def Create(self, **kwargs):
-        if not kwargs["Create"]["CreateHost"]["hostSpecId"]:
-            return WIC_RES_FAILED
         flavor_id = kwargs["Create"]["CreateHost"]["hostSpecId"]
         group_name = kwargs["Create"]["CreateHost"]["groupName"]
         os_name = kwargs["Create"]["CreateHost"]["os"]
+        n = self.flavor_list()
+        if not flavor_id:
+            try:
+                flavor_ref = self.flavor_find(vcpu = kwargs["Create"]["CreateHost"]["core"], \
+                                          ram = kwargs["Create"]["CreateHost"]["memory"])
+            except:
+                kwargs["Create"]["CreateHost"]["result"] = WIC_RES_FAILED
+                return kwargs
+        else:
+            try:
+                flavor_ref = self.flavor_find(id = flavor_id)
+            except:
+                kwargs["Create"]["CreateHost"]["result"] = WIC_RES_FAILED
+                return kwargs
         netspeed = kwargs["Create"]["CreateIp"]["netSpeed"]
         disk = kwargs["Create"]["CreateDisk"]["disk"]
-        n = self.flavor_list()
-        flavor_ref = self.flavor_find(id = flavor_id)
+        #flavor_ref = self.flavor_find(id = flavor_id)
         image_id = self.find_image(os_name)
         image_ref = self.apiurl + "/images/" + str(image_id)
         request_id = kwargs["requestId"]
@@ -643,21 +658,21 @@ if __name__ == '__main__':
     
     
     params = {'requestId':"request456"}
-    '''params["Create"] = {"CreateHost" : {'userId' : '123456',
-                                        'core' : 1,
-                                        'memory' : 1024, 
+    params["Create"] = {"CreateHost" : {'userId' : '123456',
+                                        'core' : '1',
+                                        'memory' : '512', 
                                         'groupName' : 'default',
-                                        'hostSpecId' : 2,
+                                        'hostSpecId' : None,
                                         'os' : 'ubuntu1204'
                                         },
                         "CreateIp": {'transactionId': 'transactionId',
                                     'netSpeed' : 2,
                                     'ip' : None},
                         "CreateDisk" : {"transactionId" : "transactionId123",
-                                        "disk" : 5,
+                                        "disk" : 3,
                                         }
                         }
-    res = c.Create(**params)'''
+    res = c.Create(**params)
     
     '''params["DescribeSecurityGroup"] = {'userId' : '123456',
                                        'transactionId': 'transactionId',
@@ -694,12 +709,12 @@ if __name__ == '__main__':
                                        'instanceId' : '888275bb-0775-41e0-8529-ae45cfdbec67',
                                        }
     res = c.DelHost(**params)'''
-    params["CreateSnapshot"] = {'userId' : '123456',
+    '''params["CreateSnapshot"] = {'userId' : '123456',
                                        'transactionId': 'transactionId',
                                        'instanceId' : '7ecd3a12-da59-411f-ba75-15054018993d',
                                        'volumeId' : "17",
                                        }
-    res = c.CreateSnapshot(**params)
+    res = c.CreateSnapshot(**params)'''
     
     print res
     #result = c.wic_add_user(userName = "test", password = "123456")
