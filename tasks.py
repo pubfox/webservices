@@ -10,7 +10,10 @@ try:
 except:
     pass
 
-call_back_client = Client(CALL_BACK_WSDL, cache=None)
+try:
+    call_back_client = Client(CALL_BACK_WSDL, cache=None)
+except:
+    pass
 c = wic_client()
 
 #Install django-celery steps:
