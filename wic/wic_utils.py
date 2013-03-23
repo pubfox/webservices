@@ -34,3 +34,7 @@ def get_ins_hostip(ins_id, ins_list, host_map):
     if not hostname or not host_map.has_key(hostname): return None
     return host_map[hostname]
     
+def gb_to_mb(gb):
+    if  type(gb) != type(1) and str(gb) != "0.5":
+        return -1
+    return float(gb) * 1024 

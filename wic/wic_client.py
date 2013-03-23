@@ -10,10 +10,17 @@ import os
 import urllib2
 import wic_utils
 import threading
+import logging
 from urlparse import urlparse
 from wic_client_defines import *
+import wic_format
 #from wic_floating import *
+#from nova import flags
+#from nova import log as logging
 
+#FLAGS = flags.FLAGS
+
+#LOG = logging.getLogger(__name__)
 
 class Base(object):
     def __init__(self, tenant = default_tenant):
@@ -154,10 +161,11 @@ class Base(object):
                                    }
                        }
         body = json.dumps(body)
+        print body
         http = httplib2.Http()
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
         if resp.status != 200 and resp.status != 202:
-            return WIC_RES_FAILED, None
+            return '6', None
         data = json.loads(content)
         ins_id = data["server"]["id"]
         return WIC_RES_SUCCESS, ins_id
@@ -172,13 +180,16 @@ class Base(object):
     
     def secgroup_show(self):
         uri = self.apiurl + str('/os-security-groups')
+        print uri
         http = httplib2.Http()
         resp, content = http.request (uri, method = "GET", headers=self.headers)
         return json.loads(content)
     
     def secgroup_create(self, secgroup_name):
         uri = self.apiurl + str('/os-security-groups')
+        print secgroup_name
         body = {"security_group": {"name": secgroup_name, "description": default_sec_desc}}
+        body = json.dumps(body)
         http = httplib2.Http()
         resp, content = http.request (uri, method = "POST", body = body, headers=self.headers)
         if resp.status == 200:
@@ -250,7 +261,7 @@ class Base(object):
         return WIC_RES_FAILED
     
     def volume_dettach(self, ins_id, volume_id):
-        uri = self.apiurl + "/servers/" + ins_id + "/os-volume_attachments/" + str(volume_id)
+        uri = self.apiurl + "/servers/" + str(ins_id) + "/os-volume_attachments/" + str(volume_id)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "DELETE", headers = self.headers)
         if resp.status == 200 or resp.status == 202:
@@ -264,6 +275,17 @@ class Base(object):
         if resp.status == 200 or resp.status == 202:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
+    
+    def volume_show(self, volume_id):
+        ins_id = None
+        uri = self.volumeurl + "/volumes/" + str(volume_id)
+        http = httplib2.Http()
+        resp, content = http.request (uri, method = "GET", headers=self.headers)
+        if resp.status != 200 and resp.status != 202: return WIC_RES_FAILED
+        data = json.loads(content)
+        if data["volume"]["status"] == "in-use":
+            ins_id = data["volume"]["attachments"][0]["server_id"]
+        return WIC_RES_SUCCESS, data["volume"]["status"], ins_id
     
     def instance_reboot(self, ins_id):
         uri = self.apiurl + "/servers/" + ins_id + "/action"
@@ -281,9 +303,20 @@ class Base(object):
         body = json.dumps(body)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
-        if resp.status == 200:
+        if resp.status == 200 or resp.status == 202 or resp.status == 204:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
+    
+    def instance_unpause(self, ins_id):
+        uri = self.apiurl + "/servers/" + ins_id + "/action"
+        body = {"unpause" : None}
+        body = json.dumps(body)
+        http = httplib2.Http()
+        resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        if resp.status == 200 or resp.status == 202 or resp.status == 204:
+            return WIC_RES_SUCCESS
+        return WIC_RES_FAILED
+    
     
     def floating_ip_create(self):
         uri = self.apiurl + '/os-floating-ips'
@@ -291,6 +324,7 @@ class Base(object):
         body = json.dumps(body)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        content = json.loads(content)
         if resp.status == 200:
             return WIC_RES_SUCCESS, content["floating_ip"]["ip"]
         return WIC_RES_FAILED, None
@@ -316,10 +350,14 @@ class Base(object):
     
     def floating_ip_add(self, ins_id, ipaddr):
         uri = self.apiurl + "/servers/" + ins_id + "/action"
+        print uri
+        print ipaddr
         body = {"addFloatingIp": {"address": ipaddr}}
         body = json.dumps(body)
+        print self.headers
         http = httplib2.Http()
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        print content
         if resp.status == 200 or resp.status == 202:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
@@ -347,9 +385,11 @@ class Base(object):
         if ret == "nok":
             return WIC_RES_FAILED, hostip
         uri = "http://" + str(hostip) + ":" + DEV_CTL_PORT + "/instance_device/netspeed/" + str(ins_id) + "/" + str(netspeed)
+        print uri
         req = urllib2.Request(uri)
         fd = urllib2.urlopen(req)
         ret = fd.read(3)
+        print ret
         if ret == "nok":
             return WIC_RES_FAILED, hostip  
         return WIC_RES_SUCCESS, hostip
@@ -397,52 +437,47 @@ class wic_client(Base):
         flavor_id = kwargs["Create"]["CreateHost"]["hostSpecId"]
         group_name = kwargs["Create"]["CreateHost"]["groupName"]
         os_name = kwargs["Create"]["CreateHost"]["os"]
+        netspeed = kwargs["Create"]["CreateIp"]["netSpeed"]
+        disk = kwargs["Create"]["CreateDisk"]["disk"]
+        request_id = kwargs["requestId"]
+        kwargs = wic_format.make_default_create_response(kwargs)
+        ram = wic_utils.gb_to_mb(kwargs["Create"]["CreateHost"]["memory"])
+        if ram == -1:
+            kwargs["Create"]["CreateHost"]["result"] == WIC_RES_FAILED
+            kwargs["Create"]["CreateHost"]["note"] = "memory format error"
+            return kwargs
+        
         n = self.flavor_list()
         if not flavor_id:
             try:
                 flavor_ref = self.flavor_find(vcpu = kwargs["Create"]["CreateHost"]["core"], \
-                                          ram = kwargs["Create"]["CreateHost"]["memory"])
+                                          ram = ram)
             except:
+                kwargs["Create"]["CreateHost"]["note"] = "can't find suitable format"
                 kwargs["Create"]["CreateHost"]["result"] = WIC_RES_FAILED
                 return kwargs
         else:
             try:
                 flavor_ref = self.flavor_find(id = flavor_id)
             except:
+                kwargs["Create"]["CreateHost"]["note"] = "can't find suitable format"
                 kwargs["Create"]["CreateHost"]["result"] = WIC_RES_FAILED
                 return kwargs
-        netspeed = kwargs["Create"]["CreateIp"]["netSpeed"]
-        disk = kwargs["Create"]["CreateDisk"]["disk"]
         #flavor_ref = self.flavor_find(id = flavor_id)
         image_id = self.find_image(os_name)
+        if not image_id:
+            kwargs["Create"]["CreateHost"]["result"] = WIC_RES_FAILED
+            return kwargs
         image_ref = self.apiurl + "/images/" + str(image_id)
-        request_id = kwargs["requestId"]
         res, ins_id = self.instance_create(request_id, image_ref, flavor_ref)
         kwargs["Create"]["CreateHost"]["result"] = res
         kwargs["Create"]["CreateHost"]["instanceId"] = ins_id
         kwargs["Create"]["CreateHost"]["imageId"] = image_id
-        kwargs["Create"]["CreateHost"]["privateIp"] = None
-        kwargs["Create"]["CreateHost"]["osUserName"] = default_ins_name
-        kwargs["Create"]["CreateHost"]["osPassword"] = default_ins_pass
-        kwargs["Create"]["CreateHost"]["reservationId"] = default_reservationId
-        kwargs["Create"]["CreateHost"]["vmName"] = default_vmname
-        kwargs["Create"]["CreateHost"]["privateDnsName"] = default_privateDnsName
-        kwargs["Create"]["CreateHost"]["dnsName"] = default_dnsName
-        kwargs["Create"]["CreateHost"]["keyName"] = default_keypair
-        kwargs["Create"]["CreateHost"]["amiLaunchIndex"] = None
         kwargs["Create"]["CreateHost"]["instanceType"] = flavor_id
-        kwargs["Create"]["CreateHost"]["placement"] = None
         kwargs["Create"]["CreateHost"]["kernelId"] = os_name
-        kwargs["Create"]["CreateHost"]["ramvolumeId"] = 0
-        kwargs["Create"]["CreateHost"]["isEnableHa"] = False
         kwargs["Create"]["CreateHost"]["vpcId"] = 0
-        kwargs["Create"]["CreateHost"]["mac"] = default_mac
-        kwargs["Create"]["CreateHost"]["ipAddress"] = None
         kwargs["Create"]["CreateHost"]["rateLimit"] = netspeed
-        kwargs["Create"]["CreateHost"]["vmHostName"] = "ins_" + str(request_id)
-        kwargs["Create"]["CreateHost"]["vncPort"] = 0
-        kwargs["Create"]["CreateHost"]["snapshotId"] = 0
-        kwargs["Create"]["CreateHost"]["sysVolumeId"] = 0
+        
         disk_thread = threading.Thread(target = self.asynchronous_createDisk, args = (disk, ins_id))
         disk_thread.start()
         net_thread = threading.Thread(target = self.asynchronous_netspeed, args = (netspeed, ins_id))
@@ -468,6 +503,24 @@ class wic_client(Base):
         while try_times < default_try_times:
             res, status = self.instance_show(ins_id)
             if status == 'ACTIVE': return WIC_RES_SUCCESS
+            try_times += 1
+            time.sleep(default_sleep_time)
+        return WIC_RES_FAILED
+    
+    def waiting_volume_attached(self, volume_id):
+        try_times = 0
+        while try_times < default_try_times:
+            res, status, ins_id = self.volume_show(volume_id)
+            if str(status) == "in-use": return WIC_RES_SUCCESS
+            try_times += 1
+            time.sleep(default_sleep_time)
+        return WIC_RES_FAILED
+    
+    def waiting_volume_detached(self, volume_id):
+        try_times = 0
+        while try_times < default_try_times:
+            res, status, ins_id = self.volume_show(volume_id)
+            if str(status) == "available": return WIC_RES_SUCCESS
             try_times += 1
             time.sleep(default_sleep_time)
         return WIC_RES_FAILED
@@ -510,19 +563,28 @@ class wic_client(Base):
         return kwargs
     
     def DelHost(self, *args, **kwargs):
+        kwargs["DelHost"]["note"] = default_note
         if not "instanceId" in kwargs["DelHost"].keys() or not kwargs["DelHost"]["instanceId"]:
             kwargs["DelHost"]["result"] = WIC_RES_FAILED
             return kwargs
         ins_id = kwargs["DelHost"]["instanceId"]
+        res, hostip = self.netspeed_update(ins_id, 0)
         kwargs["DelHost"]["timestamp"] = wic_utils.get_timestamp()
+        res, status = self.instance_show(ins_id)
+        if status == "PAUSED":
+            res = self.instance_unpause(ins_id)
+            kwargs["DelHost"]["result"] = self.waiting_ins_ready(ins_id)
+            if kwargs["DelHost"]["result"] == WIC_RES_FAILED:
+                kwargs["DelHost"]["note"] = "can't start host"
+                return kwargs
         kwargs["DelHost"]["result"] = self.instance_delete(ins_id)
         return kwargs
     
     def CreateDisk(self, *args, **kwargs):
-        if not "disk" in kwargs["CreateDisk"].keys() or not kwargs["CreateDisk"]["disk"]:
+        if not "size" in kwargs["CreateDisk"].keys() or not kwargs["CreateDisk"]["size"]:
             kwargs["CreateDisk"]["result"] = WIC_RES_FAILED
             return kwargs
-        size = kwargs["CreateDisk"]["disk"]
+        size = kwargs["CreateDisk"]["size"]
         kwargs["CreateDisk"]["timestamp"] = wic_utils.get_timestamp()
         kwargs["CreateDisk"]["result"], kwargs["CreateDisk"]["volumeId"]  = self.volume_create(size)
         return kwargs
@@ -532,13 +594,22 @@ class wic_client(Base):
         not "volumeId" in kwargs["BindDisk"].keys() or not kwargs["BindDisk"]["volumeId"]:
             kwargs["BindDisk"]["result"] = WIC_RES_FAILED
             return kwargs
+        kwargs["BindDisk"]["note"] = default_note
         ins_id = kwargs["BindDisk"]["instanceId"]
         volume_id = kwargs["BindDisk"]["volumeId"]
         kwargs["BindDisk"]["timestamp"] = wic_utils.get_timestamp()
         if kwargs["BindDisk"]["type"] == 1 or kwargs["BindDisk"]["type"] == str(1):
             kwargs["BindDisk"]["result"] = self.volume_attach(ins_id, volume_id)
+            kwargs["BindDisk"]["result"] = self.waiting_volume_attached(volume_id)
         elif kwargs["BindDisk"]["type"] == 2 or kwargs["BindDisk"]["type"] == str(2):
             kwargs["BindDisk"]["result"] = self.volume_dettach(ins_id, volume_id)
+            kwargs["BindDisk"]["result"] = self.waiting_volume_detached(volume_id)
+            if kwargs["BindDisk"]["result"] == WIC_RES_FAILED:
+                kwargs["BindDisk"]["note"] = "failed detahced"
+                return kwargs
+            if disk_hotplug == False:
+                kwargs["BindDisk"]["result"] = self.instance_reboot(ins_id)
+                kwargs["BindDisk"]["result"] = self.waiting_ins_ready(ins_id)
         return kwargs
     
     def wic_volume_dettach(self, *args, **kwargs):
@@ -553,13 +624,23 @@ class wic_client(Base):
         return kwargs
     
     def DelDisk(self, *args, **kwargs):
+        kwargs["DelDisk"]["note"] = default_note
         if not "volumeId" in kwargs["DelDisk"].keys() or not kwargs["DelDisk"]["volumeId"]:
             kwargs["DelDisk"]["result"] = WIC_RES_FAILED
         volume_id = kwargs["DelDisk"]["volumeId"]
-        kwargs["DelDisk"]["result"] = self.volume_delete(volume_id)
+        res, status, ins_id = self.volume_show(volume_id)
+        if status == "available":
+            kwargs["DelDisk"]["result"] = self.volume_delete(volume_id)
+        elif status == "in-use":
+            kwargs["DelDisk"]["result"] = self.volume_dettach(ins_id, volume_id)
+            kwargs["DelDisk"]["result"] = self.waiting_volume_detached(volume_id)
+            kwargs["DelDisk"]["result"] = self.volume_delete(volume_id)
+            if disk_hotplug == False:
+                kwargs["DelDisk"]["result"] = self.instance_reboot(ins_id)
         return kwargs
     
     def RestartHost(self, *args, **kwargs):
+        kwargs["RestartHost"]["note"] = default_note
         if not "instanceId" in kwargs["RestartHost"].keys() or not kwargs["RestartHost"]["instanceId"]:
             kwargs["RestartHost"]["result"] = WIC_RES_FAILED
             return kwargs
@@ -568,14 +649,25 @@ class wic_client(Base):
         return kwargs
     
     def ShutdownHost(self, **kwargs):
+        kwargs["ShutdownHost"]["note"] = default_note
         if not kwargs["ShutdownHost"]["instanceId"]:
             kwargs["ShutdownHost"]["result"] = WIC_RES_FAILED
             return kwargs
         ins_id = kwargs["ShutdownHost"]["instanceId"]
         kwargs["ShutdownHost"]["result"] = self.instance_pause(ins_id)
         return kwargs
+    
+    def StartHost(self, **kwargs):
+        kwargs["StartHost"]["note"] = default_note
+        if not kwargs["StartHost"]["instanceId"]:
+            kwargs["StartHost"]["result"] = WIC_RES_FAILED
+            return kwargs
+        ins_id = kwargs["StartHost"]["instanceId"]
+        kwargs["StartHost"]["result"] = self.instance_unpause(ins_id)
+        return kwargs
         
     def ApplyIp(self, *args, **kwargs):
+        kwargs["ApplyIp"]["note"] = default_note
         kwargs["ApplyIp"]["timestamp"] = wic_utils.get_timestamp()
         if kwargs["ApplyIp"]["type"] == 1 or kwargs["ApplyIp"]["type"] == str(1):
             kwargs["ApplyIp"]["result"], kwargs["ApplyIp"]["ip"] = self.floating_ip_create()
@@ -584,6 +676,7 @@ class wic_client(Base):
         return kwargs
     
     def BindIp(self, *args, **kwargs):
+        kwargs["BindIp"]["note"] = default_note
         if not "instanceId" in kwargs["BindIp"].keys() or not kwargs["BindIp"]["instanceId"] or \
         not "ip" in kwargs["BindIp"].keys() or not kwargs["BindIp"]["ip"]:
             kwargs["BindIp"]["result"] = WIC_RES_FAILED
@@ -595,6 +688,7 @@ class wic_client(Base):
         return kwargs
     
     def UnbindIp(self, *args, **kwargs):
+        kwargs["UnbindIp"]["note"] = default_note
         ins_id = kwargs["UnbindIp"]["instanceId"]
         ipaddr = kwargs["UnbindIp"]["ip"]
         kwargs["UnbindIp"]["timestamp"] = wic_utils.get_timestamp()
@@ -602,6 +696,7 @@ class wic_client(Base):
         return kwargs
     
     def UpdateNetSpeed(self, *args, **kwargs):
+        kwargs["UpdateNetSpeed"]["note"] = default_note
         if not kwargs["UpdateNetSpeed"]["instanceId"]: 
             kwargs["UpdateNetSpeed"]["result"] = WIC_RES_FAILED
             return kwargs
@@ -658,12 +753,12 @@ if __name__ == '__main__':
     
     
     params = {'requestId':"request456"}
-    params["Create"] = {"CreateHost" : {'userId' : '123456',
+    '''params["Create"] = {"CreateHost" : {'userId' : '123456',
                                         'core' : '1',
-                                        'memory' : '512', 
+                                        'memory' : '0.5', 
                                         'groupName' : 'default',
                                         'hostSpecId' : None,
-                                        'os' : 'ubuntu1204'
+                                        'os' : 'WIC_linux_ubuntuserver'
                                         },
                         "CreateIp": {'transactionId': 'transactionId',
                                     'netSpeed' : 2,
@@ -672,7 +767,7 @@ if __name__ == '__main__':
                                         "disk" : 3,
                                         }
                         }
-    res = c.Create(**params)
+    res = c.Create(**params)'''
     
     '''params["DescribeSecurityGroup"] = {'userId' : '123456',
                                        'transactionId': 'transactionId',
@@ -687,15 +782,15 @@ if __name__ == '__main__':
     res = c.CreateDisk(**params)'''
     '''params["DelDisk"] = {'userId' : '123456',
                                        'transactionId': 'transactionId',
-                                       'volumeId' : '13',
+                                       'volumeId' : '29',
                                        }
     res = c.DelDisk(**params)'''
     
     '''params["BindDisk"] = {'userId' : '123456',
                                        'transactionId': 'transactionId',
-                                       'volumeId' : '14',
+                                       'volumeId' : '35',
                                        'type' : '1',
-                                       'instanceId' : '888275bb-0775-41e0-8529-ae45cfdbec67',
+                                       'instanceId' : '5deaf01d-3ef6-44e5-afcc-946585be0d65',
                                        }
     res = c.BindDisk(**params)'''
     
@@ -704,18 +799,45 @@ if __name__ == '__main__':
                                        'instanceId' : '888275bb-0775-41e0-8529-ae45cfdbec67',
                                        }
     res = c.RestartHost(**params)'''
-    '''params["DelHost"] = {'userId' : '123456',
+    '''params["StartHost"] = {'userId' : '123456',
                                        'transactionId': 'transactionId',
-                                       'instanceId' : '888275bb-0775-41e0-8529-ae45cfdbec67',
+                                       'instanceId' : '050973b7-29e0-48c6-b413-987962374419',
                                        }
-    res = c.DelHost(**params)'''
+    res = c.StartHost(**params)'''
+    
+    params["DelHost"] = {'userId' : '123456',
+                                       'transactionId': 'transactionId',
+                                       'instanceId' : 'a719a33f-ba1e-4237-a6dc-03196ff9f396',
+                                       }
+    res = c.DelHost(**params)
     '''params["CreateSnapshot"] = {'userId' : '123456',
                                        'transactionId': 'transactionId',
                                        'instanceId' : '7ecd3a12-da59-411f-ba75-15054018993d',
                                        'volumeId' : "17",
                                        }
     res = c.CreateSnapshot(**params)'''
+    '''params["ApplyIp"] = {'userId' : '123456',
+                                       'transactionId': 'transactionId',
+                                       'instanceId' : '7ecd3a12-da59-411f-ba75-15054018993d',
+                                       'ip' : "192.168.1.1",
+                                       'type' : "1",
+                                       }
+    res = c.ApplyIp(**params)'''
+    '''params["BindIp"] = {'userId' : '123456',
+                                       'transactionId': 'transactionId',
+                                       'instanceId' : '3b328dfe-7a20-456f-bc61-dce4779e1e3a',
+                                       'ip' : "125.64.8.138",
+                                       'timestamp' : "1111",
+                                       }
+    res = c.BindIp(**params)'''
     
+    '''params["UnbindIp"] = {'userId' : '123456',
+                                       'transactionId': 'transactionId',
+                                       'instanceId' : '3b328dfe-7a20-456f-bc61-dce4779e1e3a',
+                                       'ip' : "125.64.8.138",
+                                       'timestamp' : "1111",
+                                       }
+    res = c.UnbindIp(**params)'''
     print res
     #result = c.wic_add_user(userName = "test", password = "123456")
     #result, volume_id = c.wic_volume_create(5)
