@@ -2,6 +2,7 @@ from .etreeconv import root_dict_to_etree
 from lxml import etree
 from .settings import *
 from .wic.wic_client import wic_client
+from .utils import format_list_tag
 from suds.client import Client
 
 try:
@@ -47,6 +48,7 @@ def _handle_request(method, params):
         print 'Result:  ' + str(res)
         res = root_dict_to_etree({'response': res})
         res = etree.tostring(res, encoding='UTF-8', xml_declaration=True)
+        res = format_list_tag(res)
         res = EncryptHandler.get_encrypt_by_password(res, ENCRYPT_PASSWORD)
         _call_back_result.delay(res)
     except Exception, exc:
