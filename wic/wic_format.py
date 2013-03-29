@@ -28,4 +28,8 @@ def make_default_create_response(kwargs):
     kwargs["Create"]["CreateHost"]["sysVolumeId"] = 0
     kwargs["Create"]["CreateHost"]["note"] = None
     
+    kwargs["Create"]["CreateDisk"]["note"] = None
+    kwargs["Create"]["CreateDisk"]["volumeId"] = None
+    kwargs["Create"]["CreateDisk"]["zone"] = None
+    
     return kwargs

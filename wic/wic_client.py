@@ -73,6 +73,8 @@ class Base(object):
         return None
     
     def flavor_find(self, id = None, vcpu = None, ram = None):
+        print vcpu
+        print ram
         if id: 
             for fl in self.flavor_ls:
                 if fl["id"] == str(id):
@@ -173,10 +175,21 @@ class Base(object):
     def instance_show(self, ins_id):
         uri = self.apiurl + "/servers/" + str(ins_id)
         http = httplib2.Http()
+        try:
+            resp, content = http.request (uri, method = "GET", headers=self.headers)
+        except Exception, ex:
+            return WIC_RES_FAILED, None
+        if resp.status != 200 and resp.status != 202: return WIC_RES_FAILED, None
+        data = json.loads(content)
+        return WIC_RES_SUCCESS, data["server"]["status"]
+    
+    def instance_info(self, ins_id):
+        uri = self.apiurl + "/servers/" + str(ins_id)
+        http = httplib2.Http()
         resp, content = http.request (uri, method = "GET", headers=self.headers)
         if resp.status != 200 and resp.status != 202: return WIC_RES_FAILED
         data = json.loads(content)
-        return WIC_RES_SUCCESS, data["server"]["status"]
+        return WIC_RES_SUCCESS, data
     
     def secgroup_show(self):
         uri = self.apiurl + str('/os-security-groups')
@@ -204,7 +217,71 @@ class Base(object):
         if resp.status == 200 or resp.status == 202:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
-        
+    
+    def secgroup_show(self):
+        uri = self.apiurl + str('/os-security-groups')
+        http = httplib2.Http()
+        try:
+            resp, content = http.request (uri, method = "GET", headers=self.headers)
+        except Exception, e:
+            return WIC_RES_FAILED, None
+        content = json.loads(content)
+        if resp.status == 200 or resp.status == 202:
+            return WIC_RES_SUCCESS, content
+        return WIC_RES_FAILED, None
+    
+    def secgroup_add_rule(self, protocol, from_port, to_port, parent_group_id, group = None, ip_range = None):
+        if ip_range:
+            res, cidrs = wic_utils.iprange_to_cidrs(ip_range)
+            if res == WIC_RES_FAILED:
+                return res
+            for cidr in cidrs:
+                res += self.do_secgroup_add_rule(protocol, from_port, to_port, parent_group_id, cidr = str(cidr))
+                time.sleep(1)
+            if res > WIC_RES_SUCCESS:
+                return WIC_RES_FAILED
+            else: return res
+        elif group:
+            res = self.do_secgroup_add_rule(protocol, from_port, to_port, parent_group_id, group = int(group))
+            return res
+    
+    def do_secgroup_add_rule(self, protocol, from_port, to_port, parent_group_id, group = None, cidr = None):
+        uri = self.apiurl + str('/os-security-group-rules')
+        body = {
+                "security_group_rule": 
+                {"from_port": str(from_port), "ip_protocol": str(protocol), 
+                 "to_port": str(to_port), "parent_group_id": int(parent_group_id)}
+                }
+        if cidr:
+            body["security_group_rule"]["cidr"] = cidr
+        if group:
+            body["security_group_rule"]["group_id"] = int(group)
+        body = json.dumps(body)
+        print body
+        http = httplib2.Http()
+        resp, content = http.request (uri, method = "POST", body = body, headers=self.headers)
+        print resp
+        if resp.status == 200 or resp.status == 202:
+            return WIC_RES_SUCCESS
+        return WIC_RES_FAILED
+    
+    def secgroup_delete_rule(self, content, protocol, from_port, to_port,
+                              parent_group_id, group = None, ip_range = None):
+        if group:
+            id = wic_utils.get_secgroup_rule_id(content, protocol, from_port, 
+                                                to_port, parent_group_id, group = group)
+        elif ip_range:
+            id = wic_utils.get_secgroup_rule_id(content, protocol, from_port, 
+                                                to_port, parent_group_id, ip_range = ip_range)
+    
+    def do_secgroup_delete_rule(self, rule_id):
+        uri = self.apiurl + str('/os-security-group-rules/') + str(rule_id)
+        http = httplib2.Http()
+        resp, content = http.request (uri, method = "DELETE", headers=self.headers)
+        if resp.status == 200 or resp.status == 202:
+            return WIC_RES_SUCCESS
+        return WIC_RES_FAILED
+                
     def instance_suspend(self, ins_id):
         uri = self.apiurl + "/servers/" + ins_id + "/action"
         body = {"suspend" : None}
@@ -218,7 +295,10 @@ class Base(object):
     def instance_delete(self, ins_id):
         uri = self.apiurl + "/servers/" + str(ins_id)
         http = httplib2.Http()
-        resp, content = http.request(uri, method = "DELETE", headers = self.headers)
+        try:
+            resp, content = http.request(uri, method = "DELETE", headers = self.headers)
+        except Exception, e:
+            return WIC_RES_FAILED
         if resp.status == 200 or resp.status == 202 or resp.status == 204:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
@@ -244,7 +324,7 @@ class Base(object):
             return WIC_RES_SUCCESS, volume_id
         return WIC_RES_FAILED, None
     
-    def volume_attach(self, ins_id, volume_id, device = '/dev/vdx'):
+    def volume_attach(self, ins_id, volume_id, device = '/dev/vde'):
         uri = self.apiurl + "/servers/" + ins_id + "/os-volume_attachments"
         body = {
                     "volumeAttachment": 
@@ -281,7 +361,9 @@ class Base(object):
         uri = self.volumeurl + "/volumes/" + str(volume_id)
         http = httplib2.Http()
         resp, content = http.request (uri, method = "GET", headers=self.headers)
-        if resp.status != 200 and resp.status != 202: return WIC_RES_FAILED
+        if resp.status != 200 and resp.status != 202:
+            print "return" 
+            return WIC_RES_FAILED, None, ins_id
         data = json.loads(content)
         if data["volume"]["status"] == "in-use":
             ins_id = data["volume"]["attachments"][0]["server_id"]
@@ -316,7 +398,6 @@ class Base(object):
         if resp.status == 200 or resp.status == 202 or resp.status == 204:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
-    
     
     def floating_ip_create(self):
         uri = self.apiurl + '/os-floating-ips'
@@ -412,8 +493,8 @@ class Base(object):
         if resp.status == 200 or resp.status == 202:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
+    
         
-
 class wic_client(Base):
     def __init__(self, tenant = default_tenant):
         super(wic_client, self).__init__()
@@ -448,19 +529,21 @@ class wic_client(Base):
             return kwargs
         
         n = self.flavor_list()
+        print "core:", kwargs["Create"]["CreateHost"]["core"]
+        print "ram:", ram
         if not flavor_id:
             try:
-                flavor_ref = self.flavor_find(vcpu = kwargs["Create"]["CreateHost"]["core"], \
-                                          ram = ram)
+                flavor_ref = self.flavor_find(vcpu = str(kwargs["Create"]["CreateHost"]["core"]), \
+                                          ram = float(ram))
             except:
-                kwargs["Create"]["CreateHost"]["note"] = "can't find suitable format"
+                kwargs["Create"]["CreateHost"]["note"] = "can't find suitable format1"
                 kwargs["Create"]["CreateHost"]["result"] = WIC_RES_FAILED
                 return kwargs
         else:
             try:
                 flavor_ref = self.flavor_find(id = flavor_id)
             except:
-                kwargs["Create"]["CreateHost"]["note"] = "can't find suitable format"
+                kwargs["Create"]["CreateHost"]["note"] = "can't find suitable format2"
                 kwargs["Create"]["CreateHost"]["result"] = WIC_RES_FAILED
                 return kwargs
         #flavor_ref = self.flavor_find(id = flavor_id)
@@ -477,19 +560,20 @@ class wic_client(Base):
         kwargs["Create"]["CreateHost"]["kernelId"] = os_name
         kwargs["Create"]["CreateHost"]["vpcId"] = 0
         kwargs["Create"]["CreateHost"]["rateLimit"] = netspeed
-        
-        disk_thread = threading.Thread(target = self.asynchronous_createDisk, args = (disk, ins_id))
-        disk_thread.start()
-        net_thread = threading.Thread(target = self.asynchronous_netspeed, args = (netspeed, ins_id))
-        net_thread.start()
+        if disk != None:
+            disk_thread = threading.Thread(target = self.asynchronous_createDisk, args = (disk, ins_id))
+            disk_thread.start()
+        if netspeed != None:
+            net_thread = threading.Thread(target = self.asynchronous_netspeed, args = (netspeed, ins_id))
+            net_thread.start()
         return kwargs
     
     def asynchronous_createDisk(self, size, ins_id):
         res, volume_id = self.volume_create(size)
-        if res == WIC_RES_FAILED: return
+        if res == WIC_RES_FAILED: return res
         res = self.waiting_ins_ready(ins_id)
-        if res == WIC_RES_FAILED: return
-        res = self.volume_attach(ins_id, volume_id)
+        if res == WIC_RES_FAILED: return res
+        res = self.volume_attach(ins_id, volume_id, device = "/dev/vdx")
         return res
     
     def asynchronous_netspeed(self, netspeed, ins_id):
@@ -505,6 +589,7 @@ class wic_client(Base):
             if status == 'ACTIVE': return WIC_RES_SUCCESS
             try_times += 1
             time.sleep(default_sleep_time)
+        print "waiting_ins_ready timeout"
         return WIC_RES_FAILED
     
     def waiting_volume_attached(self, volume_id):
@@ -524,6 +609,16 @@ class wic_client(Base):
             try_times += 1
             time.sleep(default_sleep_time)
         return WIC_RES_FAILED
+    
+    def auto_volume_attach(self, ins_id, volume_id):
+        device = wic_utils.get_device_location(ins_id)
+        print device
+        if not device:
+            return WIC_RES_FAILED
+        res = self.volume_attach(ins_id, volume_id, device = device)
+        if res == WIC_RES_SUCCESS:
+            wic_utils.write_device_location(ins_id, volume_id, device)
+        return res
         
     def CreateSecurityGroup(self, **kwargs):
         if not kwargs["CreateSecurityGroup"]["groupName"]:
@@ -571,6 +666,9 @@ class wic_client(Base):
         res, hostip = self.netspeed_update(ins_id, 0)
         kwargs["DelHost"]["timestamp"] = wic_utils.get_timestamp()
         res, status = self.instance_show(ins_id)
+        if res == WIC_RES_FAILED:
+            kwargs["DelHost"]["result"] = res
+            return kwargs
         if status == "PAUSED":
             res = self.instance_unpause(ins_id)
             kwargs["DelHost"]["result"] = self.waiting_ins_ready(ins_id)
@@ -599,17 +697,36 @@ class wic_client(Base):
         volume_id = kwargs["BindDisk"]["volumeId"]
         kwargs["BindDisk"]["timestamp"] = wic_utils.get_timestamp()
         if kwargs["BindDisk"]["type"] == 1 or kwargs["BindDisk"]["type"] == str(1):
-            kwargs["BindDisk"]["result"] = self.volume_attach(ins_id, volume_id)
+            kwargs["BindDisk"]["result"] = self.auto_volume_attach(ins_id, volume_id)
+            if kwargs["BindDisk"]["result"] == WIC_RES_FAILED:
+                kwargs["BindDisk"]["note"] = "can not find volume id"
+                return kwargs
             kwargs["BindDisk"]["result"] = self.waiting_volume_attached(volume_id)
         elif kwargs["BindDisk"]["type"] == 2 or kwargs["BindDisk"]["type"] == str(2):
             kwargs["BindDisk"]["result"] = self.volume_dettach(ins_id, volume_id)
+            if kwargs["BindDisk"]["result"] == WIC_RES_FAILED:
+                kwargs["BindDisk"]["note"] = "can not find volume id"
+                return kwargs
             kwargs["BindDisk"]["result"] = self.waiting_volume_detached(volume_id)
             if kwargs["BindDisk"]["result"] == WIC_RES_FAILED:
                 kwargs["BindDisk"]["note"] = "failed detahced"
                 return kwargs
+            wic_utils.delete_device_location(ins_id, volume_id)
             if disk_hotplug == False:
-                kwargs["BindDisk"]["result"] = self.instance_reboot(ins_id)
-                kwargs["BindDisk"]["result"] = self.waiting_ins_ready(ins_id)
+                res, status = self.instance_show(ins_id)
+                print status
+                if status == "PAUSED":
+                    time.sleep(1)
+                    kwargs["BindDisk"]["result"] = self.instance_unpause(ins_id)
+                    kwargs["BindDisk"]["result"] = self.waiting_ins_ready(ins_id)
+                    kwargs["BindDisk"]["result"] = self.instance_reboot(ins_id)
+                    kwargs["BindDisk"]["result"] = self.waiting_ins_ready(ins_id)
+                    kwargs["BindDisk"]["result"] = self.instance_pause(ins_id)
+                    kwargs["BindDisk"]["result"] = self.waiting_ins_ready(ins_id)
+                else:
+                    time.sleep(1)
+                    kwargs["BindDisk"]["result"] = self.instance_reboot(ins_id)
+                    kwargs["BindDisk"]["result"] = self.waiting_ins_ready(ins_id)
         return kwargs
     
     def wic_volume_dettach(self, *args, **kwargs):
@@ -627,8 +744,14 @@ class wic_client(Base):
         kwargs["DelDisk"]["note"] = default_note
         if not "volumeId" in kwargs["DelDisk"].keys() or not kwargs["DelDisk"]["volumeId"]:
             kwargs["DelDisk"]["result"] = WIC_RES_FAILED
+            kwargs["DelDisk"]["note"] = "no volumeId input"
+            return kwargs
         volume_id = kwargs["DelDisk"]["volumeId"]
         res, status, ins_id = self.volume_show(volume_id)
+        if res == WIC_RES_FAILED:
+            kwargs["DelDisk"]["result"] = WIC_RES_FAILED
+            kwargs["DelDisk"]["note"] = "can not find the volume"
+            return kwargs
         if status == "available":
             kwargs["DelDisk"]["result"] = self.volume_delete(volume_id)
         elif status == "in-use":
@@ -752,13 +875,13 @@ if __name__ == '__main__':
     res = c.UpdateNetSpeed(**params)'''
     
     
-    params = {'requestId':"request456"}
+    params = {'requestId':"request426"}
     '''params["Create"] = {"CreateHost" : {'userId' : '123456',
                                         'core' : '1',
                                         'memory' : '0.5', 
                                         'groupName' : 'default',
                                         'hostSpecId' : None,
-                                        'os' : 'WIC_linux_ubuntuserver'
+                                        'os' : 'WIC_windows_win2008'
                                         },
                         "CreateIp": {'transactionId': 'transactionId',
                                     'netSpeed' : 2,
@@ -788,11 +911,29 @@ if __name__ == '__main__':
     
     '''params["BindDisk"] = {'userId' : '123456',
                                        'transactionId': 'transactionId',
-                                       'volumeId' : '35',
-                                       'type' : '1',
-                                       'instanceId' : '5deaf01d-3ef6-44e5-afcc-946585be0d65',
+                                       'volumeId' : '39',
+                                       'type' : '2',
+                                       'instanceId' : '1be5dd29-1ea0-4577-a324-ba02d6a78206',
                                        }
     res = c.BindDisk(**params)'''
+    
+    '''params["EmpowerPort"] = { 'userId' : '123456',
+                             'transactionId' : 'transactionId',
+                             'groupName' : 'testsg',
+                              'type' : '1',
+                              'ipPermissions' : [
+                                                 {"startPort" : "22",
+                                                  "endPort" : "22",
+                                                  "ipProtocol" : "tcp",
+                                                  "groups" : {"gUserId" : "123456", "gGroupName" : "testsg"},                                            
+                                                  },
+                                                  {"startPort" : "3389",
+                                                  "endPort" : "3389",
+                                                  "ipProtocol" : "tcp",
+                                                  "groups" : {"gUserId" : "123456", "gGroupName" : "testsg"},                                            
+                                                  }
+                                                 ]
+                            }'''
     
     '''params["RestartHost"] = {'userId' : '123456',
                                        'transactionId': 'transactionId',
@@ -805,11 +946,11 @@ if __name__ == '__main__':
                                        }
     res = c.StartHost(**params)'''
     
-    params["DelHost"] = {'userId' : '123456',
+    '''params["DelHost"] = {'userId' : '123456',
                                        'transactionId': 'transactionId',
-                                       'instanceId' : 'a719a33f-ba1e-4237-a6dc-03196ff9f396',
+                                       'instanceId' : '359adcd1-c9eb-4e12-acba-99808178ba64',
                                        }
-    res = c.DelHost(**params)
+    res = c.DelHost(**params)'''
     '''params["CreateSnapshot"] = {'userId' : '123456',
                                        'transactionId': 'transactionId',
                                        'instanceId' : '7ecd3a12-da59-411f-ba75-15054018993d',
@@ -838,6 +979,16 @@ if __name__ == '__main__':
                                        'timestamp' : "1111",
                                        }
     res = c.UnbindIp(**params)'''
+    #c.auto_volume_attach(37, "1be5dd29-1ea0-4577-a324-ba02d6a78206")
+    res, content = c.secgroup_show()
+    secgroup_name = "ttt"
+    group_name = "default"
+    id = wic_utils.get_secgroup_id(secgroup_name, content)
+    gid = wic_utils.get_secgroup_id(group_name, content)
+    if id:
+        print "id:", id
+        c.secgroup_delete_rule(content, "tcp", "1", "65535", id, group = group_name)
+    
     print res
     #result = c.wic_add_user(userName = "test", password = "123456")
     #result, volume_id = c.wic_volume_create(5)

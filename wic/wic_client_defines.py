@@ -24,14 +24,17 @@ default_privateDnsName = '192.168.133.1'
 default_dnsName    = '8.8.8.8'
 default_mac        = 'aa:bb:cc:dd:ee'
 
-default_try_times  = 15
-default_sleep_time = 5
+default_try_times  = 20
+default_sleep_time = 10
 
 instance_prefix    = "Chuandge_"
 ins_list           = []
 control_node       = ["show-01"]
 
 disk_hotplug       = False
+
+
+attach_file        = "/tmp/wic/attach_file"
 
 #Magic
 WIC_RES_SUCCESS    = 0
