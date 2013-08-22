@@ -11,15 +11,7 @@ from .utils import clear_list, get_method
 from .settings import *
 from .wic.wic_client_v2 import wic_client
 from .tasks import _handle_request
-
-#Install pyjnius steps:
-#apt-get install build-essential openjdk-7-jdk cython python-dev
-#python setup.py install
-try:
-    from jnius import autoclass as Java
-    EncryptHandler = Java(ENCRYPT_CLASS_PATH)
-except:
-    pass
+import subprocess
 
 def handle_request(params):
     method = get_method(params)
@@ -39,7 +31,8 @@ class WebService(ServiceBase):
     @srpc(String, _returns=String)
     def call(xml):
         #Decrypt request
-        xml = EncryptHandler.get_decrypt_by_password(xml, ENCRYPT_PASSWORD)
+        xml = subprocess.check_output(['java', '-jar', 'webservices/java/Encryptor.jar', '-decrypt', xml, ENCRYPT_PASSWORD]).strip()
+        print xml
         xml = AnyXml.from_string(xml)
         #Process params from request
         params = get_xml_as_object(xml, AnyDict)

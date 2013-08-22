@@ -4,18 +4,12 @@ from .settings import *
 from .wic.wic_client_v2 import wic_client
 from .utils import format_list_tag
 from suds.client import Client
-
-try:
-    from jnius import autoclass as Java
-    EncryptHandler = Java(ENCRYPT_CLASS_PATH)
-except:
-    pass
+import subprocess
 
 try:
     call_back_client = Client(CALL_BACK_WSDL, cache=None)
 except:
     pass
-
 
 #Install django-celery steps:
 #pip install celery==2.4.7
@@ -44,6 +38,20 @@ except:
 
 @task
 def _handle_request(method, params):
+    print 'Request: ' + str(params)
+    kwargs = params[method]
+    c = wic_client()
+    kwargs = getattr(c, method)(**kwargs)
+    params[method] = kwargs
+    res = params
+    print 'Result:  ' + str(res)
+    res = root_dict_to_etree({'response': res})
+    res = etree.tostring(res, encoding='UTF-8', xml_declaration=True)
+    res = format_list_tag(res)
+    res = subprocess.check_output(['java', '-jar', 'webservices/java/Encryptor.jar', '-encrypt', res, ENCRYPT_PASSWORD]).strip()
+    print res
+    #_call_back_result.delay(res)
+    '''
     try:
         print 'Request: ' + str(params)
         kwargs = params[method]
@@ -55,10 +63,11 @@ def _handle_request(method, params):
         res = root_dict_to_etree({'response': res})
         res = etree.tostring(res, encoding='UTF-8', xml_declaration=True)
         res = format_list_tag(res)
-        res = EncryptHandler.get_encrypt_by_password(res, ENCRYPT_PASSWORD)
+        res = subprocess.check_output(['java', '-jar', 'webservices/java/Encryptor.jar', '-encrypt', res, ENCRYPT_PASSWORD]).strip()
         _call_back_result.delay(res)
     except Exception, exc:
         raise _handle_request.retry(exc=exc)
+    '''
 
 @task
 def _call_back_result(result):

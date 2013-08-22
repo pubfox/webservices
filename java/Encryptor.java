@@ -6,13 +6,15 @@ import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 
-public class Encrypt {
+public class Encryptor {
+    /*
 	public static String password = "qweeee";
 	
     public Encrypt(String password) {
 		super();
 		this.password = password;
 	}
+    */
 	/** 
      * 加密 
      *  
@@ -116,6 +118,7 @@ public class Encrypt {
         try {
 			String function = args[0].toString();
 			String inputStr = args[1].toString();
+			String password = args[2].toString();
 			if (function.equals("-encrypt") || function.equals("-decrypt")) {
 				if (function.equals("-encrypt")) {
 					String result = get_encrypt_by_password(inputStr, password);
