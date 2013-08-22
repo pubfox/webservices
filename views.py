@@ -9,8 +9,7 @@ from spyne.util.xml import get_xml_as_object
 from django.views.decorators.csrf import csrf_exempt
 from .utils import clear_list, get_method
 from .settings import *
-from .wic.wic_client import wic_client
-c = wic_client()
+from .wic.wic_client_v2 import wic_client
 from .tasks import _handle_request
 
 #Install pyjnius steps:
@@ -59,9 +58,13 @@ class WebService(ServiceBase):
         params = get_xml_as_object(xml, AnyDict)
         params = clear_list(params)
         method = get_method(params)
+        c = wic_client()
         if not hasattr(c, method):
             raise Exception, 'Not implemented method: %s' % method
-        return getattr(c, method)(**params)
+        kwargs = params[method]
+        kwargs = getattr(c, method)(**kwargs)
+        params[method] = kwargs
+        return params
 
 soap_services = csrf_exempt(DjangoApplication(Application([WebService],
         'soap.services',

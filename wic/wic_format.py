@@ -26,7 +26,7 @@ def make_default_create_response(kwargs):
     kwargs["Create"]["CreateHost"]["vncPort"] = 0
     kwargs["Create"]["CreateHost"]["snapshotId"] = 0
     kwargs["Create"]["CreateHost"]["sysVolumeId"] = 0
-    kwargs["Create"]["CreateHost"]["note"] = None
+    kwargs["Create"]["CreateHost"]["note"] = default_note
     
     kwargs["Create"]["CreateDisk"]["note"] = None
     kwargs["Create"]["CreateDisk"]["volumeId"] = None

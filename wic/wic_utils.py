@@ -3,6 +3,9 @@ import os
 import re
 import netaddr
 from wic_client_defines import *
+from novaclient.v1_1.client import Client
+from novaclient.exceptions import *
+from keystoneclient.v2_0.client import Client as KeyStoneClient
 
 def get_timestamp():
     return time.strftime(ISOTIMEFORMAT, time.localtime())
@@ -39,7 +42,12 @@ def gb_to_mb(gb):
     '''if  type(gb) != type(1.0) and str(gb) != "0.5":
         print "err here"
         return -1'''
-    return float(gb) * 1024 
+    #return float(gb) * 1024
+    try:
+        mb =  float(gb) * 1024
+    except:
+        mb = -1
+    return mb
 
 def get_device_location(ins_id):
     ins_vol = {}

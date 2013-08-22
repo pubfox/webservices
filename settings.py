@@ -27,6 +27,7 @@ METHOD_NAMES = {
 'StartHost':'开启虚机',
 }
 
-CALL_BACK_WSDL = 'http://182.131.22.210:8120/intf/service/HuaweiIaasService?wsdl'
+CALL_BACK_WSDL = 'http://222.211.85.14:8120/intf/service/HuaweiIaasService?wsdl'
+#CALL_BACK_WSDL = 'http://www.189yun.cc:8120/intf/service/HuaweiIaasService?wsdl'
 ID_SUCCESS = 0
 ID_FAIL = 1

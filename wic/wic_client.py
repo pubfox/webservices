@@ -14,6 +14,8 @@ import logging
 from urlparse import urlparse
 from wic_client_defines import *
 import wic_format
+from novaclient.v1_1.client import Client
+import novaclient
 #from wic_floating import *
 #from nova import flags
 #from nova import log as logging
@@ -60,6 +62,7 @@ class Base(object):
         self.ins_list = []
         self.flavor_ls = []
         self.host_len = wic_utils.get_hostmap(self.host_map)
+        self.client = Client(osuser, ospassword, default_tenant, auth_uri)
         
     def flavor_list(self):
         uri = self.apiurl + "/flavors/detail"
@@ -78,10 +81,10 @@ class Base(object):
         if id: 
             for fl in self.flavor_ls:
                 if fl["id"] == str(id):
-                    return fl["links"][0]["href"]
+                    return fl["links"][0]["href"], id
         for fl in self.flavor_ls:
             if fl["vcpus"] == int(vcpu) and fl["ram"] == int(ram):
-                return fl["links"][0]["href"]
+                return fl["links"][0]["href"], fl['id']
         raise "not found flavor"
         return None
             
@@ -149,8 +152,9 @@ class Base(object):
             return WIC_RES_SUCCESS, userId
         return WIC_RES_FAILED, None
     
-    def instance_create(self, request_id, image_ref, flavor_ref, key_name = default_keypair):
+    def instance_create(self, request_id, image_id, flavor_id, security_groups=default_sec, key_name = default_keypair):
         instance_name = "ins_" + str(request_id)
+        '''
         uri = self.apiurl + "/servers"
         body = {
                         "server" : {
@@ -159,18 +163,30 @@ class Base(object):
                                         "key_name" : key_name,
                                         "flavorRef" : flavor_ref,
                                         "max_count" : default_max_count,
-                                        "min_count" : default_min_count
+                                        "min_count" : default_min_count,
                                    }
                        }
+        if security_group:
+            body['server']["security-groups"] = [security_group]
         body = json.dumps(body)
         print body
         http = httplib2.Http()
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        print resp, content
         if resp.status != 200 and resp.status != 202:
-            return '6', None
+            return WIC_RES_FAILED , None
         data = json.loads(content)
         ins_id = data["server"]["id"]
-        return WIC_RES_SUCCESS, ins_id
+        print ins_id
+        '''
+        try:
+            image = self.client.images.get(image_id)
+            flavor = self.client.flavors.get(flavor_id)
+            security_groups = [] if not security_groups else [security_groups]
+            res = self.client.servers.create(instance_name, image, flavor, security_groups=security_groups, key_name=key_name)
+            return WIC_RES_SUCCESS, res.id
+        except:
+            return WIC_RES_FAILED , None 
     
     def instance_show(self, ins_id):
         uri = self.apiurl + "/servers/" + str(ins_id)
@@ -191,7 +207,7 @@ class Base(object):
         data = json.loads(content)
         return WIC_RES_SUCCESS, data
     
-    def secgroup_show(self):
+    def _secgroup_show(self):
         uri = self.apiurl + str('/os-security-groups')
         print uri
         http = httplib2.Http()
@@ -205,6 +221,7 @@ class Base(object):
         body = json.dumps(body)
         http = httplib2.Http()
         resp, content = http.request (uri, method = "POST", body = body, headers=self.headers)
+        print resp, content
         if resp.status == 200:
             data = json.loads(content)
             return WIC_RES_SUCCESS, data["security_group"]["id"]
@@ -288,7 +305,8 @@ class Base(object):
         body = json.dumps(body)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
-        if resp.status == 200:
+        print resp, content
+        if resp.status in [200, 202]:
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
     
@@ -318,6 +336,7 @@ class Base(object):
         body = json.dumps (body)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        #print resp, content
         if resp.status == 200:
             data = json.loads(content)
             volume_id = data["volume"]["id"]
@@ -336,7 +355,9 @@ class Base(object):
         body = json.dumps(body)
         http = httplib2.Http()
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
+        #print resp, content
         if resp.status == 200 or resp.status == 202:
+            self.instance_reboot(ins_id)
             return WIC_RES_SUCCESS
         return WIC_RES_FAILED
     
@@ -440,8 +461,8 @@ class Base(object):
         resp, content = http.request(uri, method = "POST", body = body, headers = self.headers)
         print content
         if resp.status == 200 or resp.status == 202:
-            return WIC_RES_SUCCESS
-        return WIC_RES_FAILED
+            return WIC_RES_SUCCESS, default_note
+        return WIC_RES_FAILED, 'BindIp error, please check instanceId, ip'
     
     def floating_ip_remove(self, ins_id, ipaddr):
         uri = self.apiurl + "/servers/" + ins_id + "/action"
@@ -523,36 +544,44 @@ class wic_client(Base):
         request_id = kwargs["requestId"]
         kwargs = wic_format.make_default_create_response(kwargs)
         ram = wic_utils.gb_to_mb(kwargs["Create"]["CreateHost"]["memory"])
+        if group_name:
+            try:
+                self.client.security_groups.find(name=group_name)
+            except:
+                kwargs["Create"]["CreateHost"]["result"] == WIC_RES_FAILED
+                kwargs["Create"]["CreateHost"]["note"] = "groupName not found"
+                return kwargs
         if ram == -1:
             kwargs["Create"]["CreateHost"]["result"] == WIC_RES_FAILED
             kwargs["Create"]["CreateHost"]["note"] = "memory format error"
             return kwargs
         
         n = self.flavor_list()
-        print "core:", kwargs["Create"]["CreateHost"]["core"]
-        print "ram:", ram
+        #print "core:", kwargs["Create"]["CreateHost"]["core"]
+        #print "ram:", ram
         if not flavor_id:
             try:
-                flavor_ref = self.flavor_find(vcpu = str(kwargs["Create"]["CreateHost"]["core"]), \
+                flavor_ref, flavor_id = self.flavor_find(vcpu = str(kwargs["Create"]["CreateHost"]["core"]), \
                                           ram = float(ram))
             except:
-                kwargs["Create"]["CreateHost"]["note"] = "can't find suitable format1"
+                kwargs["Create"]["CreateHost"]["note"] = "can't find suitable core, memory"
                 kwargs["Create"]["CreateHost"]["result"] = WIC_RES_FAILED
                 return kwargs
         else:
             try:
-                flavor_ref = self.flavor_find(id = flavor_id)
+                flavor_ref, flavor_id = self.flavor_find(id = flavor_id)
             except:
-                kwargs["Create"]["CreateHost"]["note"] = "can't find suitable format2"
+                kwargs["Create"]["CreateHost"]["note"] = "can't find suitable hostSpecId"
                 kwargs["Create"]["CreateHost"]["result"] = WIC_RES_FAILED
                 return kwargs
         #flavor_ref = self.flavor_find(id = flavor_id)
         image_id = self.find_image(os_name)
         if not image_id:
             kwargs["Create"]["CreateHost"]["result"] = WIC_RES_FAILED
+            kwargs["Create"]["CreateHost"]["note"] = 'os not found'
             return kwargs
         image_ref = self.apiurl + "/images/" + str(image_id)
-        res, ins_id = self.instance_create(request_id, image_ref, flavor_ref)
+        res, ins_id = self.instance_create(request_id, image_id, flavor_id, group_name)
         kwargs["Create"]["CreateHost"]["result"] = res
         kwargs["Create"]["CreateHost"]["instanceId"] = ins_id
         kwargs["Create"]["CreateHost"]["imageId"] = image_id
@@ -621,34 +650,61 @@ class wic_client(Base):
         return res
         
     def CreateSecurityGroup(self, **kwargs):
+        kwargs["CreateSecurityGroup"]["note"] = default_note
         if not kwargs["CreateSecurityGroup"]["groupName"]:
             kwargs["CreateSecurityGroup"]["result"] = WIC_RES_FAILED
+            kwargs["CreateSecurityGroup"]["note"] = "groupName can't be blank"
             return kwargs
         secgroup_name = kwargs["CreateSecurityGroup"]["groupName"]
+        all_secgroups = self._secgroup_show()
+        for secgroup in all_secgroups['security_groups']:
+            if secgroup['name'] == secgroup_name:
+                kwargs["CreateSecurityGroup"]["result"] = WIC_RES_FAILED
+                kwargs["CreateSecurityGroup"]["note"] = "groupName already exists"
+                return kwargs
         kwargs["CreateSecurityGroup"]["result"], id = self.secgroup_create(secgroup_name)
         return kwargs
         
     def DescribeSecurityGroup(self, *args, **kwargs):
+        kwargs["DescribeSecurityGroup"]["note"] = default_note
         kwargs["DescribeSecurityGroup"]["timestamp"] = wic_utils.get_timestamp()
         secgroup_name = kwargs["DescribeSecurityGroup"]["groupName"]
-        all_secgroups = self.secgroup_show()
+        all_secgroups = self._secgroup_show()
         for secgroup in all_secgroups['security_groups']:
             if secgroup['name'] == secgroup_name:
                 kwargs["DescribeSecurityGroup"]["result"] = WIC_RES_SUCCESS
                 return kwargs
+        kwargs["DescribeSecurityGroup"]["note"] = 'groupName not found'
         kwargs["DescribeSecurityGroup"]["result"] = WIC_RES_FAILED
         return kwargs
     
     def DelSecurityGroup(self, **kwargs):
+        kwargs["DelSecurityGroup"]["note"] = default_note
         kwargs["DelSecurityGroup"]["timestamp"] = wic_utils.get_timestamp()
         secgroup_name = kwargs["DelSecurityGroup"]["groupName"]
-        all_secgroups = self.secgroup_show()
+        all_secgroups = self._secgroup_show()
         for secgroup in all_secgroups['security_groups']:
             if secgroup['name'] == secgroup_name:
-                secgroup_id = secgroups['id']
-                kwargs["DelSecurityGroup"]["result"] = self.secgroup_delete(secgroup_id)
-                return kwargs
+                secgroup_id = secgroup['id']
+                try:
+                    self.client.security_groups.delete(secgroup_id)
+                    kwargs["DelSecurityGroup"]["result"] = WIC_RES_SUCCESS
+                    return kwargs
+                except novaclient.exceptions.BadRequest:
+                    kwargs["DelSecurityGroup"]["result"] = WIC_RES_FAILED
+                    kwargs["DelSecurityGroup"]["note"] = 'groupName in use'
+                    return kwargs
+                except novaclient.exceptions.NotFound:
+                    kwargs["DelSecurityGroup"]["result"] = WIC_RES_FAILED
+                    kwargs["DelSecurityGroup"]["note"] = 'groupName not found'
+                    return kwargs
+                except:
+                    kwargs["DelSecurityGroup"]["result"] = WIC_RES_FAILED
+                    kwargs["DelSecurityGroup"]["note"] = 'error'
+                    return kwargs
+                    
         kwargs["DelSecurityGroup"]["result"] = WIC_RES_FAILED
+        kwargs["DelSecurityGroup"]["note"] = 'groupName not found'
         return kwargs
     
     def StopHost(self, *args, **kwargs):
@@ -803,11 +859,12 @@ class wic_client(Base):
         if not "instanceId" in kwargs["BindIp"].keys() or not kwargs["BindIp"]["instanceId"] or \
         not "ip" in kwargs["BindIp"].keys() or not kwargs["BindIp"]["ip"]:
             kwargs["BindIp"]["result"] = WIC_RES_FAILED
+            kwargs["BindIp"]["note"] = 'BindIp error, please check instanceId, ip'
             return kwargs
         ins_id = kwargs["BindIp"]["instanceId"]
         ipaddr = kwargs["BindIp"]["ip"]
         kwargs["BindIp"]["timestamp"] = wic_utils.get_timestamp()
-        kwargs["BindIp"]["result"] = self.floating_ip_add(ins_id, ipaddr)
+        kwargs["BindIp"]["result"], kwargs["BindIp"]["note"] = self.floating_ip_add(ins_id, ipaddr)
         return kwargs
     
     def UnbindIp(self, *args, **kwargs):
@@ -864,132 +921,4 @@ class wic_client(Base):
         
 
 if __name__ == '__main__':
-    c = wic_client()
-    #result = c.wic_secgroup_show(groupName = "default")
-    '''params = {'requestId':"requestId"}
-    params['UpdateNetSpeed'] = {
-        'instanceId':'93707c4e-f547-4b13-9358-c18d8ff08555',
-        'netSpeed': 10,
-        'timestamp': "timestamp",
-        }
-    res = c.UpdateNetSpeed(**params)'''
-    
-    
-    params = {'requestId':"request426"}
-    '''params["Create"] = {"CreateHost" : {'userId' : '123456',
-                                        'core' : '1',
-                                        'memory' : '0.5', 
-                                        'groupName' : 'default',
-                                        'hostSpecId' : None,
-                                        'os' : 'WIC_windows_win2008'
-                                        },
-                        "CreateIp": {'transactionId': 'transactionId',
-                                    'netSpeed' : 2,
-                                    'ip' : None},
-                        "CreateDisk" : {"transactionId" : "transactionId123",
-                                        "disk" : 3,
-                                        }
-                        }
-    res = c.Create(**params)'''
-    
-    '''params["DescribeSecurityGroup"] = {'userId' : '123456',
-                                       'transactionId': 'transactionId',
-                                       'groupName' : 'default',
-                                       }
-    res = c.DescribeSecurityGroup(**params)'''
-    '''params["CreateDisk"] = {'userId' : '123456',
-                                       'transactionId': 'transactionId',
-                                       'groupName' : 'default',
-                                       'disk' : 5,
-                                       }
-    res = c.CreateDisk(**params)'''
-    '''params["DelDisk"] = {'userId' : '123456',
-                                       'transactionId': 'transactionId',
-                                       'volumeId' : '29',
-                                       }
-    res = c.DelDisk(**params)'''
-    
-    '''params["BindDisk"] = {'userId' : '123456',
-                                       'transactionId': 'transactionId',
-                                       'volumeId' : '39',
-                                       'type' : '2',
-                                       'instanceId' : '1be5dd29-1ea0-4577-a324-ba02d6a78206',
-                                       }
-    res = c.BindDisk(**params)'''
-    
-    '''params["EmpowerPort"] = { 'userId' : '123456',
-                             'transactionId' : 'transactionId',
-                             'groupName' : 'testsg',
-                              'type' : '1',
-                              'ipPermissions' : [
-                                                 {"startPort" : "22",
-                                                  "endPort" : "22",
-                                                  "ipProtocol" : "tcp",
-                                                  "groups" : {"gUserId" : "123456", "gGroupName" : "testsg"},                                            
-                                                  },
-                                                  {"startPort" : "3389",
-                                                  "endPort" : "3389",
-                                                  "ipProtocol" : "tcp",
-                                                  "groups" : {"gUserId" : "123456", "gGroupName" : "testsg"},                                            
-                                                  }
-                                                 ]
-                            }'''
-    
-    '''params["RestartHost"] = {'userId' : '123456',
-                                       'transactionId': 'transactionId',
-                                       'instanceId' : '888275bb-0775-41e0-8529-ae45cfdbec67',
-                                       }
-    res = c.RestartHost(**params)'''
-    '''params["StartHost"] = {'userId' : '123456',
-                                       'transactionId': 'transactionId',
-                                       'instanceId' : '050973b7-29e0-48c6-b413-987962374419',
-                                       }
-    res = c.StartHost(**params)'''
-    
-    '''params["DelHost"] = {'userId' : '123456',
-                                       'transactionId': 'transactionId',
-                                       'instanceId' : '359adcd1-c9eb-4e12-acba-99808178ba64',
-                                       }
-    res = c.DelHost(**params)'''
-    '''params["CreateSnapshot"] = {'userId' : '123456',
-                                       'transactionId': 'transactionId',
-                                       'instanceId' : '7ecd3a12-da59-411f-ba75-15054018993d',
-                                       'volumeId' : "17",
-                                       }
-    res = c.CreateSnapshot(**params)'''
-    '''params["ApplyIp"] = {'userId' : '123456',
-                                       'transactionId': 'transactionId',
-                                       'instanceId' : '7ecd3a12-da59-411f-ba75-15054018993d',
-                                       'ip' : "192.168.1.1",
-                                       'type' : "1",
-                                       }
-    res = c.ApplyIp(**params)'''
-    '''params["BindIp"] = {'userId' : '123456',
-                                       'transactionId': 'transactionId',
-                                       'instanceId' : '3b328dfe-7a20-456f-bc61-dce4779e1e3a',
-                                       'ip' : "125.64.8.138",
-                                       'timestamp' : "1111",
-                                       }
-    res = c.BindIp(**params)'''
-    
-    '''params["UnbindIp"] = {'userId' : '123456',
-                                       'transactionId': 'transactionId',
-                                       'instanceId' : '3b328dfe-7a20-456f-bc61-dce4779e1e3a',
-                                       'ip' : "125.64.8.138",
-                                       'timestamp' : "1111",
-                                       }
-    res = c.UnbindIp(**params)'''
-    #c.auto_volume_attach(37, "1be5dd29-1ea0-4577-a324-ba02d6a78206")
-    res, content = c.secgroup_show()
-    secgroup_name = "ttt"
-    group_name = "default"
-    id = wic_utils.get_secgroup_id(secgroup_name, content)
-    gid = wic_utils.get_secgroup_id(group_name, content)
-    if id:
-        print "id:", id
-        c.secgroup_delete_rule(content, "tcp", "1", "65535", id, group = group_name)
-    
-    print res
-    #result = c.wic_add_user(userName = "test", password = "123456")
-    #result, volume_id = c.wic_volume_create(5)
-    #result = c.wic_volume_attach("93707c4e-f547-4b13-9358-c18d8ff08555", 4)
+    pass

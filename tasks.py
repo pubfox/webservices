@@ -1,7 +1,7 @@
 from .etreeconv import root_dict_to_etree
 from lxml import etree
 from .settings import *
-from .wic.wic_client import wic_client
+from .wic.wic_client_v2 import wic_client
 from .utils import format_list_tag
 from suds.client import Client
 
@@ -15,7 +15,7 @@ try:
     call_back_client = Client(CALL_BACK_WSDL, cache=None)
 except:
     pass
-c = wic_client()
+
 
 #Install django-celery steps:
 #pip install celery==2.4.7
@@ -31,6 +31,8 @@ BROKER_PORT = 5672
 BROKER_USER = "guest"
 BROKER_PASSWORD = "guest"
 BROKER_VHOST = "/"
+CELERYD_WORKER_LOST_WAIT = 3600
+CELERYD_TASK_TIME_LIMIT = 3600
 INSTALLED_APPS += ('djcelery', )
 '''
 #Start django-celery worker
@@ -44,7 +46,11 @@ except:
 def _handle_request(method, params):
     try:
         print 'Request: ' + str(params)
-        res = getattr(c, method)(**params)
+        kwargs = params[method]
+        c = wic_client()
+        kwargs = getattr(c, method)(**kwargs)
+        params[method] = kwargs
+        res = params
         print 'Result:  ' + str(res)
         res = root_dict_to_etree({'response': res})
         res = etree.tostring(res, encoding='UTF-8', xml_declaration=True)
