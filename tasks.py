@@ -38,20 +38,6 @@ except:
 
 @task
 def _handle_request(method, params):
-    print 'Request: ' + str(params)
-    kwargs = params[method]
-    c = wic_client()
-    kwargs = getattr(c, method)(**kwargs)
-    params[method] = kwargs
-    res = params
-    print 'Result:  ' + str(res)
-    res = root_dict_to_etree({'response': res})
-    res = etree.tostring(res, encoding='UTF-8', xml_declaration=True)
-    res = format_list_tag(res)
-    res = subprocess.check_output(['java', '-jar', 'webservices/java/Encryptor.jar', '-encrypt', res, ENCRYPT_PASSWORD]).strip()
-    print res
-    #_call_back_result.delay(res)
-    '''
     try:
         print 'Request: ' + str(params)
         kwargs = params[method]
@@ -67,7 +53,6 @@ def _handle_request(method, params):
         _call_back_result.delay(res)
     except Exception, exc:
         raise _handle_request.retry(exc=exc)
-    '''
 
 @task
 def _call_back_result(result):
