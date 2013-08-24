@@ -441,7 +441,6 @@ class wic_client(object):
             instance = self.client.servers.get(kwargs['instanceId'])
             _status = instance.status
             volume = self.volume_client.volumes.get(kwargs['volumeId'])
-            print volume.attachments 
             type = int(kwargs['type'])
             if type == 1:
                 if volume.attachments:
@@ -455,8 +454,8 @@ class wic_client(object):
                 kwargs["attachTime"] = wic_utils.get_timestamp()
                 #kwargs['device'] = device
             elif type == 2:
-                if volume.attachments:
-                    raise Exception('volume is already binded') 
+                if not volume.attachments:
+                    raise Exception('volume is not binded') 
                 if not _status == 'SUSPENDED':
                     raise Exception('instance should be shutdown')
                 instance.resume()
@@ -474,7 +473,8 @@ class wic_client(object):
             except:
                 print 'BindDisk: instance %s can not reboot' % instance.id
             try:
-                if _status == 'SUSPENDED': 
+                if _status == 'SUSPENDED':
+                    time.sleep(default_sleep_time * DEFAULT_MULTI)
                     instance.suspend()
                     self._wait_instance_ready(instance.id, status='SUSPENDED')
             except:
@@ -527,8 +527,6 @@ class wic_client(object):
             kwargs['result'] = WIC_RES_FAILED
         kwargs["timestamp"] = wic_utils.get_timestamp()
         return kwargs
-    
-    
     
     def CreateUser(self, **kwargs):
         try:
