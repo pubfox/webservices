@@ -57,8 +57,8 @@ def _handle_request(method, params):
 @task
 def _call_back_result(result):
     try:
-        print 'CallBack:' + result
+        #print 'CallBack:' + result
         res = call_back_client.service.invoke(in0=result)
-        print 'Response:' + res
+        #print 'Response:' + res
     except Exception, exc:
         raise _call_back_result.retry(exc=exc)

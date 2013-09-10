@@ -16,8 +16,9 @@ class wic_client(object):
     def _wait_instance_ready(self, instance_id, status='ACTIVE'):
         try_times = 0
         while try_times < default_try_times:
-            _status = self.client.servers.get(instance_id).status
-            print _status
+            instance = self.client.servers.get(instance_id)
+            _status = instance.status
+            print '%s:%s' % (instance.name, _status)
             if _status == status: return WIC_RES_SUCCESS
             try_times += 1
             time.sleep(default_sleep_time)
@@ -26,8 +27,9 @@ class wic_client(object):
     def _wait_volume_ready(self, volume_id, status='available'):
         try_times = 0
         while try_times < default_try_times:
-            _status = self.volume_client.volumes.get(volume_id).status
-            print _status
+            volume = self.volume_client.volumes.get(volume_id)
+            _status = volume.status
+            print '%s:%s' % (volume.display_name, _status)
             if _status == status: return WIC_RES_SUCCESS
             try_times += 1
             time.sleep(default_sleep_time)
@@ -38,32 +40,14 @@ class wic_client(object):
         hostip = HOST_MAP.get(host, None)
         if not hostip:
             raise Exception('can not find instance hostip')
-        uri = "http://" + str(hostip) + ":" + DEV_CTL_PORT + "/instance_device/netspeed/" + str(instance.id) + "/0"
-        req = urllib2.Request(uri)
-        fd = urllib2.urlopen(req)
-        ret = fd.read(3)
-        if ret == "nok":
-            raise Exception('can not reset instance netspeed')
         uri = "http://" + str(hostip) + ":" + DEV_CTL_PORT + "/instance_device/netspeed/" + str(instance.id) + "/" + str(netspeed)
-        #print uri
         req = urllib2.Request(uri)
         fd = urllib2.urlopen(req)
         ret = fd.read(3)
-        #print ret
         if ret == "nok":
             raise Exception('can not set instance netspeed')
         return WIC_RES_SUCCESS, hostip
     
-    def _get_device(self, instance):
-        volumes = self.client.volumes.get_server_volumes(instance.id)
-        devices_used = [volume.device for volume in volumes]
-        for i in xrange(100, 123):
-            device = '%s%s' % (DEFAULT_DEVICE, chr(i))
-            if device not in devices_used:
-                return device
-        raise Exception('instance attach too many volumes')
-        
-
     def StartHost(self, **kwargs):
         try:            
             instance = self.client.servers.get(kwargs['instanceId'])
@@ -71,7 +55,9 @@ class wic_client(object):
                 instance.resume()
             elif instance.status == 'STOPPED':
                 instance.start()
-            elif instance.status == 'SHUTOFF':
+            elif instance.status == 'PAUSED':
+                instance.unpause() 
+            elif instance.status in ['ACTIVE', 'SHUTOFF']:
                 instance.reboot()
             else:
                 raise Exception('Instance status wrong')
@@ -116,6 +102,9 @@ class wic_client(object):
         try:            
             instance = self.client.servers.get(kwargs['instanceId'])
             self._wait_instance_ready(instance.id)
+            instance.reboot('HARD')
+            self._wait_instance_ready(instance.id)
+            time.sleep(default_sleep_time * 10)
             instance.suspend()
             self._wait_instance_ready(instance.id, status='SUSPENDED')
             kwargs['note'] = default_note
@@ -135,10 +124,10 @@ class wic_client(object):
                 instance.unpause()
             if instance.status == 'STOPPED':
                 instance.start()
-            if instance.status == 'SHUTOFF':
+            if instance.status in ['ACTIVE', 'SHUTOFF']:
                 instance.reboot()
             self._wait_instance_ready(instance.id)
-            '''
+            
             volumes = self.volume_client.volumes.list()
             for volume in volumes:
                 if volume.attachments:
@@ -147,7 +136,7 @@ class wic_client(object):
                             self.client.volumes.delete_server_volume(attachment['server_id'], attachment['volume_id'])
                             self._wait_volume_ready(attachment['volume_id'])
                             time.sleep(default_sleep_time * DEFAULT_MULTI)
-            '''
+            
             ips = self.client.floating_ips.findall(instance_id=instance.id)
             for ip in ips:
                 instance.remove_floating_ip(ip)
@@ -407,22 +396,18 @@ class wic_client(object):
             size = int(size.strip())
             if not size > 0:
                 raise Exception('size should be >= 1')
-            volume = self.volume_client.volumes.create(size)
+            display_name = 'vol_%s' % kwargs.get('transactionId', None)
+            volume = self.volume_client.volumes.create(size, display_name=display_name)
             self._wait_volume_ready(volume.id)
             if 'instanceId' in kwargs.keys():
                 if kwargs['instanceId']:
                     instance = self.client.servers.get(kwargs['instanceId'])
-                    device = self._get_device(instance)
-                    self.client.volumes.create_server_volume(instance.id, volume.id, device)
+                    self.client.volumes.create_server_volume(instance.id, volume.id, None)
                     self._wait_volume_ready(volume.id, status='in-use')
                     time.sleep(default_sleep_time * DEFAULT_MULTI)
-                    self._wait_instance_ready(instance.id)
-                    instance.reboot('HARD')
-                    self._wait_instance_ready(instance.id)
                 del kwargs['instanceId']
             volume = self.volume_client.volumes.get(volume.id)
             kwargs['volumeId'] = volume.id
-            #kwargs['device'] = device
             kwargs['snapshotId'] = ''
             kwargs['zone'] = ''
             kwargs['status'] = volume.status
@@ -448,11 +433,9 @@ class wic_client(object):
                 if _status == 'SUSPENDED':
                     instance.resume()
                 self._wait_instance_ready(instance.id)
-                device = self._get_device(instance)
-                self.client.volumes.create_server_volume(instance.id, volume.id, device)
+                self.client.volumes.create_server_volume(instance.id, volume.id, None)
                 self._wait_volume_ready(volume.id, status='in-use')
                 kwargs["attachTime"] = wic_utils.get_timestamp()
-                #kwargs['device'] = device
             elif type == 2:
                 if not volume.attachments:
                     raise Exception('volume is not binded') 
@@ -462,19 +445,13 @@ class wic_client(object):
                 self._wait_instance_ready(instance.id)
                 self.client.volumes.delete_server_volume(instance.id, volume.id)
                 self._wait_volume_ready(volume.id)
-                kwargs["attachTime"]=''
+                kwargs["attachTime"] = ''
             else:
                 raise Exception('type error')
             time.sleep(default_sleep_time * DEFAULT_MULTI)
             try:
-                self._wait_instance_ready(instance.id)
-                instance.reboot('HARD')
-                self._wait_instance_ready(instance.id)
-            except:
-                print 'BindDisk: instance %s can not reboot' % instance.id
-            try:
                 if _status == 'SUSPENDED':
-                    time.sleep(default_sleep_time * DEFAULT_MULTI)
+                    time.sleep(default_sleep_time * 10)
                     instance.suspend()
                     self._wait_instance_ready(instance.id, status='SUSPENDED')
             except:
@@ -497,12 +474,6 @@ class wic_client(object):
                     self.client.volumes.delete_server_volume(attachment['server_id'], attachment['volume_id'])
                     self._wait_volume_ready(attachment['volume_id'])
                     time.sleep(default_sleep_time * DEFAULT_MULTI)
-                    try:
-                        self._wait_instance_ready(attachment['server_id'])
-                        self.client.servers.reboot(attachment['server_id'], 'HARD')
-                        self._wait_instance_ready(attachment['server_id'])
-                    except:
-                        print 'DelDisk: instance %s can not reboot' % attachment['server_id']
             volume.delete()
             kwargs['note'] = default_note
             kwargs['result'] = WIC_RES_SUCCESS
@@ -580,7 +551,7 @@ class wic_client(object):
             kwargs['CreateHost']['reservationId'] = ''
             kwargs['CreateHost']['vmName'] = ''
             kwargs['CreateHost']['imageId'] = image.id
-            kwargs['CreateHost']['privateDnsName'] = instance.addresses['private'][0]['addr']
+            kwargs['CreateHost']['privateDnsName'] = instance.addresses['Net1'][0]['addr']
             kwargs['CreateHost']['dnsName'] = ''
             kwargs['CreateHost']['keyName'] = ''
             kwargs['CreateHost']['amiLaunchIndex'] = ''
@@ -610,7 +581,7 @@ class wic_client(object):
         kwargs['CreateHost']["timestamp"] = wic_utils.get_timestamp()
         
         _need_to_do = False
-        if 'CreateDisk' in kwargs.keys() and 'disk' in kwargs['CreateDisk'].keys():
+        if instance and 'CreateDisk' in kwargs.keys() and 'disk' in kwargs['CreateDisk'].keys():
             disk = kwargs['CreateDisk']['disk']
             if disk:
                 _need_to_do = True
@@ -619,20 +590,14 @@ class wic_client(object):
             disk = int(disk)
             if not disk > 0:
                 raise Exception('disk should be >= 1')
-            if not instance:
-                raise Exception('CreateHost error')
-            device = self._get_device(instance)
-            volume = self.volume_client.volumes.create(disk)
+            display_name = 'vol_%s' % kwargs['CreateDisk'].get('transactionId', None)
+            volume = self.volume_client.volumes.create(disk, display_name=display_name)
             self._wait_volume_ready(volume.id)
-            self.client.volumes.create_server_volume(instance.id, volume.id, device)
+            self.client.volumes.create_server_volume(instance.id, volume.id, None)
             self._wait_volume_ready(volume.id, status='in-use')
             time.sleep(default_sleep_time * DEFAULT_MULTI)
-            self._wait_instance_ready(instance.id)
-            instance.reboot('HARD')
-            self._wait_instance_ready(instance.id)
             volume = self.volume_client.volumes.get(volume.id)
             kwargs['CreateDisk']['volumeId'] = volume.id
-            #kwargs['CreateDisk']['device'] = device
             kwargs['CreateDisk']['createTime'] = wic_utils.get_timestamp()
             kwargs['CreateDisk']['size'] = disk
             kwargs['CreateDisk']['status'] = volume.status
@@ -642,29 +607,15 @@ class wic_client(object):
             if 'disk' in kwargs['CreateDisk'].keys():
                 del kwargs['CreateDisk']['disk']
             kwargs['CreateDisk']['note'] = default_note
-            #kwargs['CreateDisk']['result'] = WIC_RES_SUCCESS
           except Exception, e:
             kwargs['CreateDisk']['note'] = e.message
-            #kwargs['CreateDisk']['result'] = WIC_RES_FAILED
-            if instance:
-                instance.delete()
-            #kwargs['CreateHost']['note'] = e.message
+            instance.delete()
+            instance = None
+            kwargs['CreateHost']['note'] = e.message
             kwargs['CreateHost']['result'] = WIC_RES_FAILED
         
-        '''
-        try:
-            ip = self.client.floating_ips.create()
-            time.sleep(default_sleep_time)
-            instance.add_floating_ip(ip)
-            kwargs['CreateIp']['ip'] = ip.ip
-            kwargs['CreateIp']['note'] = default_note
-            kwargs['CreateIp']['result'] = WIC_RES_SUCCESS
-        except Exception, e:
-            kwargs['CreateIp']['note'] = e.message
-            kwargs['CreateIp']['result'] = WIC_RES_FAILED
-        '''
         _need_to_do = False
-        if 'CreateIp' in kwargs.keys() and 'netSpeed' in kwargs['CreateIp'].keys():
+        if instance and 'CreateIp' in kwargs.keys() and 'netSpeed' in kwargs['CreateIp'].keys():
             netspeed = kwargs['CreateIp']['netSpeed']
             if netspeed:
                 _need_to_do = True
@@ -673,20 +624,14 @@ class wic_client(object):
             netspeed = int(netspeed)
             if not netspeed >= 0:
                 raise Exception('netSpeed should be >= 0')
-            if not instance:
-                raise Exception('CreateHost error')
             res, hostip = self._netspeed_update(instance, netspeed)
             kwargs['CreateIp']['note'] = default_note
-            #kwargs['CreateIp']['result'] = WIC_RES_SUCCESS
           except Exception, e:
             kwargs['CreateIp']['note'] = e.message or e.reason
-            #kwargs['CreateIp']['result'] = WIC_RES_FAILED
         return kwargs
 
 if __name__ == '__main__':
     c = wic_client()
-    s = c.client.flavors.list()
-    s = s[0]
-    print dir(s)
-    print s.id, s.human_id
+    pass
+
     
