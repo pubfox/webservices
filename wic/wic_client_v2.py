@@ -48,19 +48,22 @@ class wic_client(object):
             raise Exception('can not set instance netspeed')
         return WIC_RES_SUCCESS, hostip
     
+    def _make_active(self, instance):
+        if instance.status == 'SUSPENDED':
+            instance.resume()
+        elif instance.status == 'STOPPED':
+            instance.start()
+        elif instance.status == 'PAUSED':
+            instance.unpause() 
+        elif instance.status in ['ACTIVE', 'SHUTOFF']:
+            instance.reboot()
+        else:
+            raise Exception('Instance status wrong')
+    
     def StartHost(self, **kwargs):
         try:            
             instance = self.client.servers.get(kwargs['instanceId'])
-            if instance.status == 'SUSPENDED':
-                instance.resume()
-            elif instance.status == 'STOPPED':
-                instance.start()
-            elif instance.status == 'PAUSED':
-                instance.unpause() 
-            elif instance.status in ['ACTIVE', 'SHUTOFF']:
-                instance.reboot()
-            else:
-                raise Exception('Instance status wrong')
+            self._make_active(instance)
             self._wait_instance_ready(instance.id)
             kwargs['note'] = default_note
             kwargs['result'] = WIC_RES_SUCCESS
@@ -118,14 +121,7 @@ class wic_client(object):
     def DelHost(self, **kwargs):
         try:            
             instance = self.client.servers.get(kwargs['instanceId'])
-            if instance.status == 'SUSPENDED':
-                instance.resume()
-            if instance.status == 'PAUSED':
-                instance.unpause()
-            if instance.status == 'STOPPED':
-                instance.start()
-            if instance.status in ['ACTIVE', 'SHUTOFF']:
-                instance.reboot()
+            self._make_active(instance)
             self._wait_instance_ready(instance.id)
             
             volumes = self.volume_client.volumes.list()
@@ -430,8 +426,8 @@ class wic_client(object):
             if type == 1:
                 if volume.attachments:
                     raise Exception('volume is already binded') 
-                if _status == 'SUSPENDED':
-                    instance.resume()
+                if not _status == 'ACTIVE':
+                    self._make_active(instance)
                 self._wait_instance_ready(instance.id)
                 self.client.volumes.create_server_volume(instance.id, volume.id, None)
                 self._wait_volume_ready(volume.id, status='in-use')
@@ -471,9 +467,18 @@ class wic_client(object):
             volume = self.volume_client.volumes.get(kwargs['volumeId'])
             if volume.attachments:
                 for attachment in volume.attachments:
+                    #instance = self.client.servers.get(attachment['server_id'])
+                    #_status = instance.status
+                    #self._make_active(instance)
+                    #self._wait_instance_ready(instance.id)
                     self.client.volumes.delete_server_volume(attachment['server_id'], attachment['volume_id'])
                     self._wait_volume_ready(attachment['volume_id'])
                     time.sleep(default_sleep_time * DEFAULT_MULTI)
+                    #if _status == 'SUSPENDED':
+                    #    time.sleep(default_sleep_time * 10)
+                    #    instance.suspend()
+                    #    self._wait_instance_ready(instance.id, status='SUSPENDED')
+                    
             volume.delete()
             kwargs['note'] = default_note
             kwargs['result'] = WIC_RES_SUCCESS
@@ -491,6 +496,8 @@ class wic_client(object):
             if not netspeed >= 0:
                 raise Exception('netSpeed should be >= 0')
             res, hostip = self._netspeed_update(instance, netspeed)
+            #Save instance netspeed
+            self.client.servers.set_meta(instance, {'netspeed':str(netspeed)})
             kwargs['note'] = default_note
             kwargs['result'] = WIC_RES_SUCCESS
         except Exception, e:
@@ -551,7 +558,7 @@ class wic_client(object):
             kwargs['CreateHost']['reservationId'] = ''
             kwargs['CreateHost']['vmName'] = ''
             kwargs['CreateHost']['imageId'] = image.id
-            kwargs['CreateHost']['privateDnsName'] = instance.addresses['Net1'][0]['addr']
+            kwargs['CreateHost']['privateDnsName'] = instance.networks['net2'][0]
             kwargs['CreateHost']['dnsName'] = ''
             kwargs['CreateHost']['keyName'] = ''
             kwargs['CreateHost']['amiLaunchIndex'] = ''
@@ -625,6 +632,8 @@ class wic_client(object):
             if not netspeed >= 0:
                 raise Exception('netSpeed should be >= 0')
             res, hostip = self._netspeed_update(instance, netspeed)
+            #Save instance netspeed
+            self.client.servers.set_meta(instance, {'netspeed':str(netspeed)})
             kwargs['CreateIp']['note'] = default_note
           except Exception, e:
             kwargs['CreateIp']['note'] = e.message or e.reason
@@ -633,5 +642,6 @@ class wic_client(object):
 if __name__ == '__main__':
     c = wic_client()
     pass
+    
 
     
