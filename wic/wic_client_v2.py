@@ -278,6 +278,7 @@ class wic_client(object):
             if ip.instance_id:
                 raise Exception('ip already loaded')
             instance.add_floating_ip(ip)
+            time.sleep(default_sleep_time * DEFAULT_MULTI)
             kwargs['note'] = default_note
             kwargs['result'] = WIC_RES_SUCCESS
         except Exception, e:
@@ -293,6 +294,7 @@ class wic_client(object):
             if not ip.instance_id == instance.id:
                 raise Exception('ip is not binded with this instance')
             instance.remove_floating_ip(ip)
+            time.sleep(default_sleep_time * DEFAULT_MULTI)
             kwargs['note'] = default_note
             kwargs['result'] = WIC_RES_SUCCESS
         except Exception, e:
@@ -467,18 +469,19 @@ class wic_client(object):
             volume = self.volume_client.volumes.get(kwargs['volumeId'])
             if volume.attachments:
                 for attachment in volume.attachments:
-                    #instance = self.client.servers.get(attachment['server_id'])
-                    #_status = instance.status
-                    #self._make_active(instance)
-                    #self._wait_instance_ready(instance.id)
+                    instance = self.client.servers.get(attachment['server_id'])
+                    _status = instance.status
+                    self._make_active(instance)
+                    self._wait_instance_ready(instance.id)
                     self.client.volumes.delete_server_volume(attachment['server_id'], attachment['volume_id'])
                     self._wait_volume_ready(attachment['volume_id'])
                     time.sleep(default_sleep_time * DEFAULT_MULTI)
-                    #if _status == 'SUSPENDED':
-                    #    time.sleep(default_sleep_time * 10)
-                    #    instance.suspend()
-                    #    self._wait_instance_ready(instance.id, status='SUSPENDED')
-                    
+                    instance.reboot()
+                    self._wait_instance_ready(instance.id)
+                    if _status == 'SUSPENDED':
+                        time.sleep(default_sleep_time * 10)
+                        instance.suspend()
+                        self._wait_instance_ready(instance.id, status='SUSPENDED')
             volume.delete()
             kwargs['note'] = default_note
             kwargs['result'] = WIC_RES_SUCCESS
@@ -637,11 +640,9 @@ class wic_client(object):
             kwargs['CreateIp']['note'] = default_note
           except Exception, e:
             kwargs['CreateIp']['note'] = e.message or e.reason
+        time.sleep(default_sleep_time * 10)
         return kwargs
 
 if __name__ == '__main__':
     c = wic_client()
     pass
-    
-
-    
