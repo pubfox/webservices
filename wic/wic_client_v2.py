@@ -57,8 +57,10 @@ class wic_client(object):
             instance.unpause() 
         elif instance.status in ['ACTIVE', 'SHUTOFF']:
             instance.reboot()
+        elif instance.status == 'REBOOT':
+            pass
         else:
-            raise Exception('Instance status wrong')
+            raise Exception('Instance status wrong: %s' % instance.status)
     
     def StartHost(self, **kwargs):
         try:            
@@ -139,7 +141,7 @@ class wic_client(object):
                 time.sleep(default_sleep_time)
             self._wait_instance_ready(instance.id)
             instance.delete()
-            time.sleep(default_sleep_time * 10)
+            time.sleep(default_sleep_time * DEFAULT_MULTI)
             kwargs['note'] = default_note
             kwargs['result'] = WIC_RES_SUCCESS
         except Exception, e:
@@ -387,6 +389,7 @@ class wic_client(object):
         return kwargs
     
     def CreateDisk(self, **kwargs):
+        volume = None
         try:
             size = kwargs.get('size', None)
             if not size:
@@ -416,6 +419,9 @@ class wic_client(object):
         except Exception, e:
             kwargs['note'] = e.message
             kwargs['result'] = WIC_RES_FAILED
+            if volume:
+                volume.delete()
+                volume = None
         kwargs["timestamp"] = wic_utils.get_timestamp()
         return kwargs
     
@@ -591,6 +597,7 @@ class wic_client(object):
         kwargs['CreateHost']["timestamp"] = wic_utils.get_timestamp()
         
         _need_to_do = False
+        volume = None
         if instance and 'CreateDisk' in kwargs.keys() and 'disk' in kwargs['CreateDisk'].keys():
             disk = kwargs['CreateDisk']['disk']
             if disk:
@@ -623,6 +630,9 @@ class wic_client(object):
             instance = None
             kwargs['CreateHost']['note'] = e.message
             kwargs['CreateHost']['result'] = WIC_RES_FAILED
+            if volume:
+                volume.delete()
+                volume = None
         
         _need_to_do = False
         if instance and 'CreateIp' in kwargs.keys() and 'netSpeed' in kwargs['CreateIp'].keys():
