@@ -31,7 +31,7 @@ class WebService(ServiceBase):
     @srpc(String, _returns=String)
     def call(xml):
         #Decrypt request
-        xml = subprocess.check_output(['java', '-jar', 'webservices/java/Encryptor.jar', '-decrypt', xml, ENCRYPT_PASSWORD]).strip()
+        xml = subprocess.check_output(['java', '-jar', '/usr/share/openstack-dashboard/webservices/java/Encryptor.jar', '-decrypt', xml, ENCRYPT_PASSWORD]).strip()
         xml = AnyXml.from_string(xml)
         #Process params from request
         params = get_xml_as_object(xml, AnyDict)

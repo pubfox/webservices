@@ -55,9 +55,9 @@ class wic_client(object):
             instance.start()
         elif instance.status == 'PAUSED':
             instance.unpause() 
-        elif instance.status in ['ACTIVE', 'SHUTOFF']:
-            instance.reboot()
-        elif instance.status == 'REBOOT':
+        elif instance.status in ['SHUTOFF']:
+            instance.reboot('HARD')
+        elif instance.status in ['ACTIVE', 'REBOOT', 'HARD_REBOOT']:
             pass
         else:
             raise Exception('Instance status wrong: %s' % instance.status)
@@ -92,7 +92,7 @@ class wic_client(object):
     def RestartHost(self, **kwargs):
         try:            
             instance = self.client.servers.get(kwargs['instanceId'])
-            self._wait_instance_ready(instance.id)
+            #self._wait_instance_ready(instance.id)
             instance.reboot('HARD')
             self._wait_instance_ready(instance.id)
             kwargs['note'] = default_note
@@ -106,7 +106,7 @@ class wic_client(object):
     def ShutdownHost(self, **kwargs):
         try:            
             instance = self.client.servers.get(kwargs['instanceId'])
-            self._wait_instance_ready(instance.id)
+            #self._wait_instance_ready(instance.id)
             instance.reboot('HARD')
             self._wait_instance_ready(instance.id)
             time.sleep(default_sleep_time * 10)
@@ -125,15 +125,6 @@ class wic_client(object):
             instance = self.client.servers.get(kwargs['instanceId'])
             self._make_active(instance)
             self._wait_instance_ready(instance.id)
-            
-            volumes = self.volume_client.volumes.list()
-            for volume in volumes:
-                if volume.attachments:
-                    for attachment in volume.attachments:
-                        if attachment['server_id'] == instance.id:
-                            self.client.volumes.delete_server_volume(attachment['server_id'], attachment['volume_id'])
-                            self._wait_volume_ready(attachment['volume_id'])
-                            time.sleep(default_sleep_time * DEFAULT_MULTI)
             
             ips = self.client.floating_ips.findall(instance_id=instance.id)
             for ip in ips:
@@ -433,9 +424,11 @@ class wic_client(object):
             type = int(kwargs['type'])
             if type == 1:
                 if volume.attachments:
-                    raise Exception('volume is already binded') 
-                if not _status == 'ACTIVE':
+                    raise Exception('volume is already binded')
+                try:
                     self._make_active(instance)
+                except:
+                    print 'BindDisk: instance %s can not be active' % instance.id
                 self._wait_instance_ready(instance.id)
                 self.client.volumes.create_server_volume(instance.id, volume.id, None)
                 self._wait_volume_ready(volume.id, status='in-use')
@@ -445,7 +438,10 @@ class wic_client(object):
                     raise Exception('volume is not binded') 
                 if not _status == 'SUSPENDED':
                     raise Exception('instance should be shutdown')
-                instance.resume()
+                try:
+                    instance.resume()
+                except:
+                    print 'BindDisk: instance %s can not resume' % instance.id
                 self._wait_instance_ready(instance.id)
                 self.client.volumes.delete_server_volume(instance.id, volume.id)
                 self._wait_volume_ready(volume.id)
@@ -470,7 +466,7 @@ class wic_client(object):
         return kwargs
     
     def DelDisk(self, **kwargs):
-        time.sleep(default_sleep_time * 10)
+        time.sleep(default_sleep_time * 10 * 4)
         try:            
             volume = self.volume_client.volumes.get(kwargs['volumeId'])
             if volume.attachments:
@@ -482,12 +478,18 @@ class wic_client(object):
                     self.client.volumes.delete_server_volume(attachment['server_id'], attachment['volume_id'])
                     self._wait_volume_ready(attachment['volume_id'])
                     time.sleep(default_sleep_time * DEFAULT_MULTI)
-                    instance.reboot()
+                    try:
+                        instance.reboot('HARD')
+                    except:
+                        print 'DelDisk: instance %s can not reboot' % instance.id
                     self._wait_instance_ready(instance.id)
-                    if _status == 'SUSPENDED':
-                        time.sleep(default_sleep_time * 10)
-                        instance.suspend()
-                        self._wait_instance_ready(instance.id, status='SUSPENDED')
+                    try:
+                        if _status == 'SUSPENDED':
+                            time.sleep(default_sleep_time * 10)
+                            instance.suspend()
+                            self._wait_instance_ready(instance.id, status='SUSPENDED')
+                    except:
+                        print 'DelDisk: instance %s can not suspend' % instance.id
             volume.delete()
             kwargs['note'] = default_note
             kwargs['result'] = WIC_RES_SUCCESS

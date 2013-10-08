@@ -49,7 +49,7 @@ def _handle_request(method, params):
         res = root_dict_to_etree({'response': res})
         res = etree.tostring(res, encoding='UTF-8', xml_declaration=True)
         res = format_list_tag(res)
-        res = subprocess.check_output(['java', '-jar', 'webservices/java/Encryptor.jar', '-encrypt', res, ENCRYPT_PASSWORD]).strip()
+        res = subprocess.check_output(['java', '-jar', '/usr/share/openstack-dashboard/webservices/java/Encryptor.jar', '-encrypt', res, ENCRYPT_PASSWORD]).strip()
         _call_back_result.delay(res)
     except Exception, exc:
         raise _handle_request.retry(exc=exc)
