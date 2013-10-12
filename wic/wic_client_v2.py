@@ -450,6 +450,11 @@ class wic_client(object):
                 raise Exception('type error')
             time.sleep(default_sleep_time * DEFAULT_MULTI)
             try:
+                instance.reboot('HARD')
+            except:
+                print 'BindDisk: instance %s can not reboot' % instance.id
+            self._wait_instance_ready(instance.id)
+            try:
                 if _status == 'SUSPENDED':
                     time.sleep(default_sleep_time * 10)
                     instance.suspend()
